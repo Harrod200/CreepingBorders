@@ -1,0 +1,19 @@
+{
+  "title": "Creeping Borders",
+  "author": "Harrod200",
+  "description": "Automatically expands nation borders when control of a region changes, adding adjacent unclaimed regions as claims.",
+  "LoadOrder": 1200,
+  "TemplatesToConcatArrays": [],
+  "TemplatesToReplaceArrays": [],
+  "TemplatesToReplace": [],
+  "Id": "CreepingBorders",
+  "DisplayName": "Creeping Borders",
+  "Author": "Harrod200",
+  "Version": "1.0.0",
+  "ManagerVersion": "0.33.0.0",
+  "GameVersion": "1.0.38",
+  "Requirements": [],
+  "LoadAfter": [],
+  "AssemblyName": "CreepingBorders.dll",
+  "EntryMethod": "CreepingBorders.CreepingBordersCls.Load"
+}
