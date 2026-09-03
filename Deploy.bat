@@ -93,4 +93,3 @@ echo ===============================================
 echo.
 echo Target directory: !targetDir!
 echo.
-pause

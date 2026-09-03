@@ -30,7 +30,7 @@ namespace CreepingBorders
         public bool NoPopulationMalus = true;
         public bool ClaimIslandsOnCapitalContact = false;
         public bool ClaimIslandsWithinDistance = false;
-        public float ClaimIslandsDistanceKM = 500f;
+        public float ClaimIslandsDistanceKM = 1000f;
         public float CohesionRestStateBaseValue = 16f;
         public bool EnableDiscontiguityMalus = false;
         public float DiscontiguityMalusPercentage = 5.0f;
@@ -56,6 +56,7 @@ namespace CreepingBorders
             modEntry.OnToggle = new System.Func<UnityModManager.ModEntry, bool, bool>(CreepingBordersCls.OnToggle);
             modEntry.OnGUI = new System.Action<UnityModManager.ModEntry>(CreepingBordersCls.OnGUI);
             modEntry.OnSaveGUI = new System.Action<UnityModManager.ModEntry>(CreepingBordersCls.OnSaveGUI);
+            modEntry.OnUpdate = new System.Action<UnityModManager.ModEntry, float>(CreepingBordersCls.OnUpdate);
 
             try
             {
@@ -68,6 +69,18 @@ namespace CreepingBorders
             {
                 modEntry.Logger.Error("Failed to apply patches: " + ex);
                 return false;
+            }
+        }
+
+        private static bool islandAnalysisPerformed = false;
+
+        private static void OnUpdate(UnityModManager.ModEntry modEntry, float deltaTime)
+        {
+            // Run island analysis once when the game is first loaded
+            if (!islandAnalysisPerformed && GameStateManager.HasGamestates)
+            {
+                islandAnalysisPerformed = true;
+                AnalyzeIslandDistances();
             }
         }
 
@@ -104,7 +117,7 @@ namespace CreepingBorders
 
             GUILayout.Space(8f);
             GUILayout.Label("Island Claim Distance: " + CreepingBordersCls.Settings.ClaimIslandsDistanceKM.ToString("F0") + " KM", new GUILayoutOption[0]);
-            CreepingBordersCls.Settings.ClaimIslandsDistanceKM = GUILayout.HorizontalSlider(CreepingBordersCls.Settings.ClaimIslandsDistanceKM, 50f, 1000f, new GUILayoutOption[0]);
+            CreepingBordersCls.Settings.ClaimIslandsDistanceKM = GUILayout.HorizontalSlider(CreepingBordersCls.Settings.ClaimIslandsDistanceKM, 50f, 2000f, new GUILayoutOption[0]);
             // Round to nearest 50
             CreepingBordersCls.Settings.ClaimIslandsDistanceKM = Mathf.Round(CreepingBordersCls.Settings.ClaimIslandsDistanceKM / 50f) * 50f;
 
@@ -162,6 +175,144 @@ namespace CreepingBorders
         private static void OnSaveGUI(UnityModManager.ModEntry modEntry)
         {
             CreepingBordersCls.Settings.Save(modEntry);
+        }
+
+        /// <summary>
+        /// Analyzes island distances for all nations at mod load time.
+        /// Identifies the closest contiguous region for each island and logs the information.
+        /// Checks every island region against its controlling nation only.
+        /// </summary>
+        public static void AnalyzeIslandDistances()
+        {
+            if (!CreepingBordersCls.enabled)
+                return;
+
+            try
+            {
+                TINationState[] allNations = GameStateManager.AllNations();
+                if (allNations == null || allNations.Length == 0)
+                    return;
+
+                CreepingBordersCls.mod.Logger.Log("[Island Analysis] Starting island distance analysis - checking every island against its controlling nation...");
+                int totalIslandsAnalyzed = 0;
+                HashSet<TIRegionState> analyzedIslands = new HashSet<TIRegionState>(); // Track analyzed islands to avoid duplicates
+
+                // Iterate through all regions in the game to find islands
+                foreach (TINationState nation in allNations)
+                {
+                    if (nation == null || !nation.extant || nation.regions == null || nation.regions.Count == 0)
+                        continue;
+
+                    // For each region this nation controls, check if it's an island
+                    foreach (TIRegionState region in nation.regions)
+                    {
+                        if (region == null || analyzedIslands.Contains(region))
+                            continue;
+
+                        // Check if this region is an island
+                        if (region.GetLandmassType() != LandmassType.Island)
+                            continue;
+
+                        // Mark this island as analyzed
+                        analyzedIslands.Add(region);
+                        totalIslandsAnalyzed++;
+
+                        // Get contiguous regions for the nation that controls this island
+                        var contiguousInfo = TINationStateExtensions.GetTrueContiguousRegionsWithExtended(nation);
+                        if (contiguousInfo.FullyContiguousRegions.Count > 0)
+                        {
+                            // Analyze this island against only its controlling nation's contiguous regions
+                            AnalyzeSingleIsland(region, nation, contiguousInfo.FullyContiguousRegions);
+                        }
+                        else
+                        {
+                            // Nation has no contiguous regions (shouldn't happen, but log it)
+                            CreepingBordersCls.mod.Logger.Log(
+                                $"[Island Analysis] Island: {region.displayName} | Nation: {nation.displayName} | " +
+                                $"WARNING: Controlling nation has no contiguous regions");
+                        }
+                    }
+                }
+
+                CreepingBordersCls.mod.Logger.Log($"[Island Analysis] Analysis complete. Analyzed {totalIslandsAnalyzed} islands across all nations.");
+            }
+            catch (Exception ex)
+            {
+                CreepingBordersCls.mod.Logger.Error($"[Island Analysis] Error during island distance analysis: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Analyzes a single island and logs its closest contiguous region and distance.
+        /// Also identifies and logs if the island is fully discontiguous.
+        /// </summary>
+        private static void AnalyzeSingleIsland(TIRegionState island, TINationState nation, HashSet<TIRegionState> contiguousRegions)
+        {
+            if (island == null || contiguousRegions == null || contiguousRegions.Count == 0)
+                return;
+
+            float minDistance = float.MaxValue;
+            TIRegionState closestRegion = null;
+            float maxDistance = CreepingBordersCls.Settings.ClaimIslandsDistanceKM;
+            float extendedMaxDistance = maxDistance * 2f; // 200% threshold for extended distance
+
+            // Find the closest contiguous region
+            foreach (TIRegionState contiguousRegion in contiguousRegions)
+            {
+                if (contiguousRegion == null)
+                    continue;
+
+                float distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                    island.latitude, island.longitude,
+                    contiguousRegion.latitude, contiguousRegion.longitude,
+                    island.ref_spaceBody.meanRadius_km);
+
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestRegion = contiguousRegion;
+                }
+            }
+
+            if (closestRegion != null && minDistance < float.MaxValue)
+            {
+                // Determine if island is fully discontiguous or partially contiguous
+                bool isFullyDiscontiguous = minDistance > extendedMaxDistance;
+                bool isPartiallyDiscontiguous = !isFullyDiscontiguous && minDistance > maxDistance;
+
+                string contiguityStatus = isFullyDiscontiguous ? "FULLY DISCONTIGUOUS" : 
+                                         isPartiallyDiscontiguous ? "PARTIALLY DISCONTIGUOUS (Extended Distance)" : 
+                                         "CONTIGUOUS";
+
+                // Check if this island is a bridge island (adjacent to other islands in contiguous set)
+                bool isBridgeIsland = false;
+                int adjacentIslandCount = 0;
+                foreach (TIRegionState neighbor in island.Neighbors)
+                {
+                    if (neighbor != null && neighbor.nation == nation && 
+                        neighbor.GetLandmassType() == LandmassType.Island && 
+                        contiguousRegions.Contains(neighbor))
+                    {
+                        isBridgeIsland = true;
+                        adjacentIslandCount++;
+                    }
+                }
+
+                string bridgeInfo = isBridgeIsland ? $" [BRIDGE ISLAND - connects {adjacentIslandCount} other island(s)]" : "";
+
+                CreepingBordersCls.mod.Logger.Log(
+                    $"[Island Analysis] Island: {island.displayName} | Nation: {nation.displayName} | " +
+                    $"Closest Region: {closestRegion.displayName} | Distance: {minDistance:F2} km | " +
+                    $"Status: {contiguityStatus}{bridgeInfo}");
+
+                // Log detailed warning for fully discontiguous islands
+                if (isFullyDiscontiguous)
+                {
+                    CreepingBordersCls.mod.Logger.Log(
+                        $"[Island Analysis] ⚠️  ALERT: {island.displayName} is FULLY DISCONTIGUOUS " +
+                        $"({minDistance:F2} km from {closestRegion.displayName}, beyond max {extendedMaxDistance:F2} km threshold)");
+                }
+            }
         }
     }
 
@@ -293,6 +444,57 @@ namespace CreepingBorders
         }
 
         /// <summary>
+        /// Gets the extended distance category, actual distance to nearest reference region, and the closest region's name.
+        /// Returns a tuple of (category, distance, closestRegionName) where:
+        /// - category: 0 (normal), 1 (extended), -1 (out of range)
+        /// - distance: The actual distance to the nearest reference region, or float.MaxValue if out of range
+        /// - closestRegionName: The display name of the closest reference region, or "Unknown" if none found
+        /// </summary>
+        private static (int category, float distance, string closestRegionName) GetExtendedDistanceInfo(TIRegionState region, HashSet<TIRegionState> referenceRegions, float maxDistanceKm)
+        {
+            if (region == null || referenceRegions == null || referenceRegions.Count == 0 || maxDistanceKm <= 0)
+                return (-1, float.MaxValue, "Unknown");
+
+            float extendedMaxDistance = maxDistanceKm * 2f; // 200% of max distance
+            float minDistance = float.MaxValue;
+            int category = -1;
+            TIRegionState closestRegion = null;
+
+            foreach (TIRegionState refRegion in referenceRegions)
+            {
+                if (refRegion == null)
+                    continue;
+
+                // Check cache first, calculate if not cached
+                var key = (region, refRegion);
+                if (!distanceCache.TryGetValue(key, out float distance))
+                {
+                    distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                        region.latitude, region.longitude,
+                        refRegion.latitude, refRegion.longitude,
+                        region.ref_spaceBody.meanRadius_km);
+                    distanceCache[key] = distance;
+                }
+
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestRegion = refRegion;
+
+                    if (distance <= maxDistanceKm)
+                        category = 0; // Within normal range
+                    else if (distance <= extendedMaxDistance)
+                        category = 1; // Extended range
+                }
+            }
+
+            string closestRegionName = closestRegion != null ? closestRegion.displayName : "Unknown";
+            return (category, minDistance < float.MaxValue ? minDistance : float.MaxValue, closestRegionName);
+        }
+
+
+
+        /// <summary>
         /// Gets regions that can be directly annexed by this nation.
         /// Uses BFS to find contiguous regions from capital and identifies island landmasses.
         /// </summary>
@@ -422,64 +624,333 @@ namespace CreepingBorders
                 float maxDistance = CreepingBordersCls.Settings.ClaimIslandsDistanceKM;
                 if (maxDistance > 0) // Early exit: distance disabled or set to 0
                 {
-                    // Pre-filter islands (cheaper check) before expensive distance calculations
-                    var candidateIslands = new List<TIRegionState>(nation.regions.Count);
+                    // Pre-filter islands and coastal continents (cheaper check) before expensive distance calculations
+                    var candidateRegions = new List<TIRegionState>(nation.regions.Count);
                     foreach (TIRegionState region in nation.regions)
                     {
-                        if (region != null && !result.AllContiguousRegions.Contains(region) && 
-                            region.GetLandmassType() == LandmassType.Island)
+                        if (region != null && !result.AllContiguousRegions.Contains(region))
                         {
-                            candidateIslands.Add(region);
+                            // Include islands OR coastal continents
+                            bool isIsland = region.GetLandmassType() == LandmassType.Island;
+                            bool isCoastalContinent = region.GetLandmassType() == LandmassType.Continent && IsCoastalRegion(region);
+
+                            if (isIsland || isCoastalContinent)
+                            {
+                                candidateRegions.Add(region);
+                            }
                         }
                     }
 
-                    // Check distance for filtered island candidates
-                    if (candidateIslands.Count > 0)
+                    // Check distance for filtered region candidates
+                    if (candidateRegions.Count > 0)
                     {
-                        var islandsToAddFully = new HashSet<TIRegionState>();
-                        var islandsToAddExtended = new HashSet<TIRegionState>();
+                        var regionsToAddFully = new HashSet<TIRegionState>();
+                        var regionsToAddExtended = new HashSet<TIRegionState>();
 
-                        foreach (TIRegionState island in candidateIslands)
+                        foreach (TIRegionState region in candidateRegions)
                         {
-                            int distanceCategory = GetExtendedDistanceCategory(island, result.FullyContiguousRegions, maxDistance);
+                            var (distanceCategory, distance, closestRegionName) = GetExtendedDistanceInfo(region, result.FullyContiguousRegions, maxDistance);
 
                             if (distanceCategory == 0)
                             {
                                 // Within normal range - fully contiguous
-                                islandsToAddFully.Add(island);
+                                regionsToAddFully.Add(region);
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {island.displayName} ({nation.displayName}): Island within distance range (fully contiguous)");
+                                    string regionType = region.GetLandmassType() == LandmassType.Island ? "Island" : "Coastal Continent";
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} within distance range (fully contiguous) - Distance: {distance:F2} km from {closestRegionName}");
                                 }
                             }
                             else if (distanceCategory == 1)
                             {
                                 // Extended range - partially contiguous
-                                islandsToAddExtended.Add(island);
+                                regionsToAddExtended.Add(region);
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {island.displayName} ({nation.displayName}): Island in extended distance range (partially contiguous)");
+                                    string regionType = region.GetLandmassType() == LandmassType.Island ? "Island" : "Coastal Continent";
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} in extended distance range (partially contiguous) - Distance: {distance:F2} km from {closestRegionName} (max: {maxDistance:F2} km)");
                                 }
                             }
                         }
 
-                        // Add discovered islands
-                        foreach (TIRegionState island in islandsToAddFully)
+                        // Add discovered regions
+                        foreach (TIRegionState region in regionsToAddFully)
                         {
-                            result.FullyContiguousRegions.Add(island);
-                            result.AllContiguousRegions.Add(island);
+                            result.FullyContiguousRegions.Add(region);
+                            result.AllContiguousRegions.Add(region);
                         }
 
-                        foreach (TIRegionState island in islandsToAddExtended)
+                        foreach (TIRegionState region in regionsToAddExtended)
                         {
-                            result.ExtendedDistanceRegions.Add(island);
-                            result.AllContiguousRegions.Add(island);
+                            result.ExtendedDistanceRegions.Add(region);
+                            result.AllContiguousRegions.Add(region);
                         }
                     }
                 }
             }
 
+            // Third pass: Find continental regions connected through coastal island chains
+            // This allows regions separated only by a chain of adjacent islands to be contiguous
+            if (nation.regions != null)
+            {
+                FindContinentsConnectedByIslands(nation, result);
+            }
+
             return result;
+        }
+
+        /// <summary>
+        /// Determines if an island is coastal (adjacent to any contiguous region of the nation).
+        /// Used to identify islands that can serve as bridges between continental regions.
+        /// </summary>
+        private static bool IsCoastalIsland(TIRegionState island, TINationState nation, HashSet<TIRegionState> contiguousRegions)
+        {
+            if (island == null || island.GetLandmassType() != LandmassType.Island || island.nation != nation)
+                return false;
+
+            // Check if this island is adjacent to any contiguous region
+            foreach (TIRegionState neighbor in island.Neighbors)
+            {
+                if (neighbor != null && contiguousRegions.Contains(neighbor))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if a region (island or continent) is coastal (has water neighbors)
+        /// Used to determine if a region can bridge to other regions through distance-based detection
+        /// </summary>
+        private static bool IsCoastalRegion(TIRegionState region)
+        {
+            if (region == null)
+                return false;
+
+            // Check if this region has any water neighbors
+            foreach (TIRegionState neighbor in region.Neighbors)
+            {
+                if (neighbor != null && neighbor.onTheWater)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Finds continental regions connected to the nation through coastal island chains.
+        /// Uses BFS to traverse through adjacent coastal islands to discover new continental regions.
+        /// Also discovers island-to-island connections through coastal islands (allowing islands to be bridged together).
+        /// Runs iteratively to handle chains of islands that act as bridges.
+        /// Modifies currentContiguity in-place to add newly discovered continental regions.
+        /// </summary>
+        private static void FindContinentsConnectedByIslands(TINationState nation, ContiguousRegionsInfo currentContiguity)
+        {
+            if (nation == null || nation.regions == null || currentContiguity.FullyContiguousRegions.Count == 0)
+                return;
+
+            bool foundNewRegions = true;
+            int iterationCount = 0;
+            const int maxIterations = 100; // Safety limit to prevent infinite loops
+
+            // Debug: Log bridge detection starting
+            if (CreepingBordersCls.Settings.EnableDebugLogging)
+            {
+                CreepingBordersCls.mod.Logger.Log($"[Contiguity] Starting bridge island detection for {nation.displayName} with {currentContiguity.FullyContiguousRegions.Count} initial contiguous regions");
+            }
+
+            // Iteratively find bridges until no new regions are discovered
+            while (foundNewRegions && iterationCount < maxIterations)
+            {
+                foundNewRegions = false;
+                iterationCount++;
+
+                // Find all coastal islands (islands adjacent to currently contiguous regions)
+                var coastalIslands = new HashSet<TIRegionState>();
+                foreach (TIRegionState region in nation.regions)
+                {
+                    if (region != null && IsCoastalIsland(region, nation, currentContiguity.FullyContiguousRegions))
+                    {
+                        coastalIslands.Add(region);
+                    }
+                }
+
+                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                {
+                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] Bridge iteration {iterationCount}: Found {coastalIslands.Count} coastal islands");
+                    foreach (var island in coastalIslands)
+                    {
+                        CreepingBordersCls.mod.Logger.Log($"[Contiguity]   - Coastal island: {island.displayName}");
+                    }
+                }
+
+                // Adjacency-based bridge detection (only if coastal islands exist)
+                if (coastalIslands.Count > 0)
+                {
+                    // BFS through coastal islands to find connected continental regions and other islands
+                    Queue<TIRegionState> queue = new Queue<TIRegionState>(coastalIslands);
+                    HashSet<TIRegionState> visitedIslands = new HashSet<TIRegionState>(coastalIslands);
+
+                    while (queue.Count > 0)
+                    {
+                        TIRegionState currentIsland = queue.Dequeue();
+
+                        if (CreepingBordersCls.Settings.EnableDebugLogging)
+                        {
+                            CreepingBordersCls.mod.Logger.Log($"[Contiguity]   Processing island: {currentIsland.displayName}");
+                        }
+
+                        // Check all neighbors of this coastal island
+                        foreach (TIRegionState neighbor in currentIsland.Neighbors)
+                        {
+                            if (neighbor == null)
+                            {
+                                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor is null, skipping");
+                                continue;
+                            }
+
+                            if (neighbor.nation != nation)
+                            {
+                                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor {neighbor.displayName} not owned by {nation.displayName} (owned by {neighbor.nation?.displayName ?? "none"}), skipping");
+                                continue;
+                            }
+
+                            bool isNeighborIsland = neighbor.GetLandmassType() == LandmassType.Island;
+
+                            if (CreepingBordersCls.Settings.EnableDebugLogging)
+                            {
+                                CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor: {neighbor.displayName} (Island: {isNeighborIsland}, InContiguity: {currentContiguity.AllContiguousRegions.Contains(neighbor)})");
+                            }
+
+                            // If neighbor is not yet in contiguity, consider adding it
+                            if (!currentContiguity.AllContiguousRegions.Contains(neighbor))
+                            {
+                                // Add continental regions
+                                if (!isNeighborIsland)
+                                {
+                                    currentContiguity.FullyContiguousRegions.Add(neighbor);
+                                    currentContiguity.AllContiguousRegions.Add(neighbor);
+                                    foundNewRegions = true;
+
+                                    CreepingBordersCls.mod.Logger.Log(
+                                        $"[Contiguity] {neighbor.displayName} ({nation.displayName}): " +
+                                        $"Connected to mainland through coastal island chain (via {currentIsland.displayName})");
+                                }
+                                // Add islands that are adjacent to coastal islands (island-to-island bridges)
+                                else if (isNeighborIsland)
+                                {
+                                    currentContiguity.FullyContiguousRegions.Add(neighbor);
+                                    currentContiguity.AllContiguousRegions.Add(neighbor);
+                                    foundNewRegions = true;
+
+                                    CreepingBordersCls.mod.Logger.Log(
+                                        $"[Contiguity] {neighbor.displayName} ({nation.displayName}): " +
+                                        $"Island bridged to contiguity through {currentIsland.displayName}");
+                                }
+                            }
+
+                            // If neighbor is another island not yet visited, add it to queue for further exploration
+                            if (!visitedIslands.Contains(neighbor) && isNeighborIsland)
+                            {
+                                visitedIslands.Add(neighbor);
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+
+                // Third pass: Connect islands within distance range to each other (distance-based bridges)
+                // This allows islands that are within ClaimIslandsDistanceKM of each other to be contiguous
+                // This is especially important for upgrading extended-distance islands to fully-contiguous if they're close to fully-contiguous islands
+                if (CreepingBordersCls.Settings.ClaimIslandsWithinDistance && CreepingBordersCls.Settings.ClaimIslandsDistanceKM > 0)
+                {
+                    float maxDistance = CreepingBordersCls.Settings.ClaimIslandsDistanceKM;
+
+                    if (CreepingBordersCls.Settings.EnableDebugLogging)
+                    {
+                        CreepingBordersCls.mod.Logger.Log($"[Contiguity] Distance-based island bridge pass starting. Max distance: {maxDistance} km");
+                    }
+
+                    // Get all islands (including extended distance ones) that might be bridgeable
+                    var candidateIslands = new List<TIRegionState>();
+                    foreach (TIRegionState region in nation.regions)
+                    {
+                        if (region != null && region.GetLandmassType() == LandmassType.Island && 
+                            (currentContiguity.ExtendedDistanceRegions.Contains(region) || !currentContiguity.AllContiguousRegions.Contains(region)))
+                        {
+                            candidateIslands.Add(region);
+                        }
+                    }
+
+                    if (CreepingBordersCls.Settings.EnableDebugLogging)
+                    {
+                        CreepingBordersCls.mod.Logger.Log($"[Contiguity] Found {candidateIslands.Count} candidate islands for distance-based bridging (including extended distance)");
+                    }
+
+                    // For each candidate island, check if it's within distance of any island in contiguity
+                    foreach (TIRegionState candidateIsland in candidateIslands)
+                    {
+                        float minDistance = float.MaxValue;
+                        TIRegionState closestContiguousIsland = null;
+
+                    // Check distance to all FULLY contiguous islands
+                    foreach (TIRegionState contiguousRegion in currentContiguity.FullyContiguousRegions)
+                    {
+                        if (contiguousRegion == null || contiguousRegion.GetLandmassType() != LandmassType.Island)
+                            continue;
+
+                        float distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                            candidateIsland.latitude, candidateIsland.longitude,
+                            contiguousRegion.latitude, contiguousRegion.longitude,
+                            candidateIsland.ref_spaceBody.meanRadius_km);
+
+                        if (distance < minDistance)
+                        {
+                            minDistance = distance;
+                            closestContiguousIsland = contiguousRegion;
+                        }
+                    }
+
+                    // If within distance range of a fully contiguous island, upgrade or add to contiguity
+                    if (closestContiguousIsland != null && minDistance <= maxDistance)
+                    {
+                        // If it was in extended distance, move it to fully contiguous
+                        if (currentContiguity.ExtendedDistanceRegions.Contains(candidateIsland))
+                        {
+                            currentContiguity.ExtendedDistanceRegions.Remove(candidateIsland);
+                            currentContiguity.FullyContiguousRegions.Add(candidateIsland);
+                            foundNewRegions = true;
+
+                            CreepingBordersCls.mod.Logger.Log(
+                                $"[Contiguity] {candidateIsland.displayName} ({nation.displayName}): " +
+                                $"Island bridge upgrade from extended to fully contiguous - {minDistance:F2} km from {closestContiguousIsland.displayName}");
+                        }
+                        // If it wasn't in contiguity at all, add it
+                        else if (!currentContiguity.AllContiguousRegions.Contains(candidateIsland))
+                        {
+                            currentContiguity.FullyContiguousRegions.Add(candidateIsland);
+                            currentContiguity.AllContiguousRegions.Add(candidateIsland);
+                            foundNewRegions = true;
+
+                            CreepingBordersCls.mod.Logger.Log(
+                                $"[Contiguity] {candidateIsland.displayName} ({nation.displayName}): " +
+                                $"Island bridge connection - {minDistance:F2} km from {closestContiguousIsland.displayName}");
+                        }
+                    }
+                }
+                }
+            }
+
+            if (CreepingBordersCls.Settings.EnableDebugLogging)
+            {
+                CreepingBordersCls.mod.Logger.Log($"[Contiguity] Bridge island resolution completed in {iterationCount} iterations for {nation.displayName}. Final contiguous count: {currentContiguity.FullyContiguousRegions.Count}");
+            }
         }
     }
 
