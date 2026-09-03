@@ -957,6 +957,48 @@ namespace CreepingBorders
                     // For each candidate island, check if it's within distance of any island in contiguity
                     foreach (TIRegionState candidateIsland in candidateIslands)
                     {
+                        // PRE-CHECK: Before distance calculations, check if this island has adjacencies to contiguous regions
+                        // If it does, treat it as a continental-like region and bypass distance requirements
+                        if (HasAdjacenciesToContiguousRegions(candidateIsland, currentContiguity.FullyContiguousRegions))
+                        {
+                            if (CreepingBordersCls.Settings.EnableDebugLogging)
+                            {
+                                CreepingBordersCls.mod.Logger.Log($"[Contiguity] {candidateIsland.displayName} ({nation.displayName}): Island has adjacencies to contiguous regions - treating as continental");
+                            }
+
+                            // If it was in extended distance, move it to fully contiguous
+                            if (currentContiguity.ExtendedDistanceRegions.Contains(candidateIsland))
+                            {
+                                currentContiguity.ExtendedDistanceRegions.Remove(candidateIsland);
+                                currentContiguity.FullyContiguousRegions.Add(candidateIsland);
+                                foundNewRegions = true;
+
+                                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                {
+                                    CreepingBordersCls.mod.Logger.Log(
+                                        $"[Contiguity] {candidateIsland.displayName} ({nation.displayName}): " +
+                                        $"Island bridge upgrade from extended to fully contiguous via adjacencies");
+                                }
+                            }
+                            // If it wasn't in contiguity at all, add it
+                            else if (!currentContiguity.AllContiguousRegions.Contains(candidateIsland))
+                            {
+                                currentContiguity.FullyContiguousRegions.Add(candidateIsland);
+                                currentContiguity.AllContiguousRegions.Add(candidateIsland);
+                                foundNewRegions = true;
+
+                                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                {
+                                    CreepingBordersCls.mod.Logger.Log(
+                                        $"[Contiguity] {candidateIsland.displayName} ({nation.displayName}): " +
+                                        $"Island bridge connection via adjacencies");
+                                }
+                            }
+
+                            // Skip distance-based logic for this island since we found adjacencies
+                            continue;
+                        }
+
                         float minDistance = float.MaxValue;
                         TIRegionState closestContiguousIsland = null;
 
@@ -1026,6 +1068,32 @@ namespace CreepingBorders
             {
                 CreepingBordersCls.mod.Logger.Log($"[Contiguity] Bridge island resolution completed in {iterationCount} iterations for {nation.displayName}. Final contiguous count: {currentContiguity.FullyContiguousRegions.Count}");
             }
+        }
+
+        /// <summary>
+        /// Checks if an island region has any adjacencies to fully contiguous regions.
+        /// This is used to determine if an island should be treated as continental-like
+        /// and bypass distance-based claiming requirements.
+        /// </summary>
+        private static bool HasAdjacenciesToContiguousRegions(TIRegionState island, HashSet<TIRegionState> fullyContiguousRegions)
+        {
+            if (island == null || fullyContiguousRegions == null || fullyContiguousRegions.Count == 0)
+                return false;
+
+            // Check all neighbors of this island
+            foreach (TIRegionState neighbor in island.Neighbors)
+            {
+                if (neighbor == null || !fullyContiguousRegions.Contains(neighbor))
+                    continue;
+
+                // Check if we have full adjacency with this contiguous region
+                if (neighbor.IsAdjacent(island, true))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
@@ -1356,6 +1424,30 @@ namespace CreepingBorders
                 return result;
             }
 
+            // PRE-CHECK: For regions not yet found by main BFS, check if islands can reach capital through adjacencies
+            // This catches island regions that might have adjacency paths to the capital
+            if (region.GetLandmassType() == LandmassType.Island && !trueContiguousRegions.Contains(region))
+            {
+                if (CanReachCapitalThroughAdjacencies(region, nation))
+                {
+                    // Island can reach capital through adjacencies - treat as fully contiguous via direct path
+                    if (CreepingBordersCls.Settings.EnableDebugLogging)
+                    {
+                        CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): Island reaches capital via adjacencies - upgrading to DirectBFS");
+                    }
+
+                    var result = new DiscontiguityInfo 
+                    { 
+                        IsFullyDiscontiguous = false, 
+                        IsPartiallyDiscontiguous = false,
+                        ContiguityPathType = DiscontiguityInfo.PathType.DirectBFS
+                    };
+
+                    regionContiguityCache[cacheKey] = result;
+                    return result;
+                }
+            }
+
             // If region is in extended distance set, it's partially discontiguous
             // This applies to islands within extended island-distance range
             if (extendedRegions.Contains(region))
@@ -1479,6 +1571,56 @@ namespace CreepingBorders
             }
 
             return closest;
+        }
+
+        /// <summary>
+        /// Checks if an island region can reach the nation's capital through adjacencies (not distance).
+        /// Uses BFS traversal following only full adjacencies.
+        /// </summary>
+        private static bool CanReachCapitalThroughAdjacencies(TIRegionState island, TINationState nation)
+        {
+            if (island == null || nation == null || nation.capital == null)
+                return false;
+
+            // Quick check: if this region IS the capital, it's already contiguous
+            if (island == nation.capital)
+                return true;
+
+            HashSet<TIRegionState> visited = new HashSet<TIRegionState>();
+            Queue<TIRegionState> queue = new Queue<TIRegionState>();
+            queue.Enqueue(island);
+            visited.Add(island);
+
+            // BFS through adjacencies only (full adjacency)
+            while (queue.Count > 0)
+            {
+                TIRegionState current = queue.Dequeue();
+
+                foreach (TIRegionState neighbor in current.Neighbors)
+                {
+                    if (neighbor == null || visited.Contains(neighbor))
+                        continue;
+
+                    // Only traverse full adjacencies
+                    if (!neighbor.IsAdjacent(current, true))
+                        continue;
+
+                    // Check if we reached the capital
+                    if (neighbor == nation.capital)
+                    {
+                        if (CreepingBordersCls.Settings.EnableDebugLogging)
+                        {
+                            CreepingBordersCls.mod.Logger.Log($"[Contiguity] {island.displayName} ({nation.displayName}): Island can reach capital through adjacencies!");
+                        }
+                        return true;
+                    }
+
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
