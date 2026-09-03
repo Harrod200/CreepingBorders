@@ -9,9 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CreepingBorders</RootNamespace>
     <AssemblyName>CreepingBorders</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -37,9 +38,6 @@
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\TerraInvicta_Data\Managed\Assembly-CSharp.dll</HintPath>
     </Reference>
-    <Reference Include="MelonLoader">
-      <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\MelonLoader\net472\MelonLoader.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -54,8 +52,19 @@
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\TerraInvicta_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\TerraInvicta_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\TerraInvicta_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\Games\Steam\steamapps\common\Terra Invicta\TerraInvicta_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityModManager, Version=0.33.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\Games\UnityModManagerInstaller\UnityModManager.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -63,7 +72,44 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ADJACENCY_MOVEMENT_ANALYSIS.md" />
+    <None Include="ALLIED_TERRITORY_AMENDMENT.md" />
+    <None Include="ALLIED_TERRITORY_QUICK_REFERENCE.md" />
+    <None Include="AMENDMENT_INDEX.md" />
+    <None Include="AMENDMENT_SUMMARY.md" />
+    <None Include="ANALYSIS_COMPLETE.md" />
+    <None Include="ANALYSIS_INDEX.md" />
+    <None Include="CHATLOG211_IMPLEMENTATION_VERIFICATION.md" />
+    <None Include="CHATLOG212_RESTORATION_SUMMARY.md" />
+    <None Include="CODE_COMPARISON.md" />
+    <None Include="CODE_REVIEW_SUMMARY.md" />
+    <None Include="COMPLETE_AMENDMENT_DOCUMENTATION.md" />
+    <None Include="CONTIGUITY_ANALYSIS.md" />
+    <None Include="CONTIGUITY_BUG_FIX.md" />
+    <None Include="CONTIGUITY_BUG_FIX_BEHAVIOR.md" />
+    <None Include="CONTIGUITY_SYSTEM_DIAGRAMS.md" />
+    <None Include="CONTIGUITY_SYSTEM_DOCUMENTATION.md" />
+    <None Include="CONTIGUITY_SYSTEM_INDEX.md" />
+    <None Include="CONTIGUITY_SYSTEM_QUICK_REFERENCE.md" />
+    <None Include="CONTIGUITY_SYSTEM_SCENARIO_ANALYSIS.md" />
+    <None Include="CONTIGUITY_SYSTEM_SUMMARY.md" />
+    <None Include="CRASH_ANALYSIS_AND_FIXES.md" />
+    <None Include="CRASH_FIX_IMPLEMENTATION.md" />
+    <None Include="CRASH_FIX_QUICK_GUIDE.md" />
+    <None Include="CRASH_FIX_VALIDATION_REPORT.md" />
+    <None Include="DEBUG_LOGGING_SUMMARY.md" />
+    <None Include="Deploy.bat" />
+    <None Include="FINAL_VERIFICATION.md" />
+    <None Include="IMPLEMENTATION_CHECKLIST.md" />
+    <None Include="IMPLEMENTATION_SUMMARY.md" />
+    <None Include="LINE_BY_LINE_MAP.md" />
+    <None Include="LOCALIZATION_MIGRATION_SUMMARY.md" />
+    <None Include="LOCALIZATION_STRUCTURE_REFERENCE.md" />
     <None Include="modinfo.json" />
+    <None Include="QUICK_REFERENCE.md" />
+    <None Include="RESTORATION_COMPLETE_SUMMARY.md" />
+    <None Include="VERIFICATION_COMPLETE.md" />
+    <None Include="VERIFICATION_REPORT.md" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

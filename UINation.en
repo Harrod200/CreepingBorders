@@ -1,0 +1,10 @@
+UI.Nation.FromDiscontiguity={0} from territorial discontiguity (population in non-contiguous regions without island status)
+UI.Nation.CohesionLimits=Calculated value: {0}. Cohesion may never go lower than 0 or higher than 10.
+UI.Nation.Contiguity.Contiguous=Contiguous
+UI.Nation.Contiguity.FullyDiscontiguous=Fully Discontiguous
+UI.Nation.Contiguity.PartiallyDiscontiguous=Partially Discontiguous
+UI.Nation.Contiguity.Unknown=Unknown
+UI.Nation.Landmass.Island=Island
+UI.Nation.Landmass.Continent=Continent
+UI.Region.Tooltip.Landmass=Landmass Type
+UI.Region.Tooltip.Contiguity=Contiguity
