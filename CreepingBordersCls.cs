@@ -25,16 +25,16 @@ namespace CreepingBorders
     public class CreepingBordersSettings : UnityModManager.ModSettings
     {
         public bool EnableBorderExpansion = true;
-        public bool NoHostileClaims = true;
-        public bool NoDistanceCohesionMalus = true;
-        public bool NoPopulationMalus = true;
+        public bool NoHostileClaims = false;
+        public bool NoDistanceCohesionMalus = false;
+        public bool NoPopulationMalus = false;
         public bool ClaimIslandsOnCapitalContact = false;
-        public bool ClaimIslandsWithinDistance = false;
+        public bool ClaimIslandsWithinDistance = true;
         public float ClaimIslandsDistanceKM = 1000f;
         public float CohesionRestStateBaseValue = 16f;
         public bool EnableDiscontiguityMalus = false;
         public float DiscontiguityMalusPercentage = 5.0f;
-        public bool EnableInstantAnnexations = true;
+        public bool EnableInstantAnnexations = false;
         public bool EnableDebugLogging = false;
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -193,7 +193,6 @@ namespace CreepingBorders
                 if (allNations == null || allNations.Length == 0)
                     return;
 
-                CreepingBordersCls.mod.Logger.Log("[Island Analysis] Starting island distance analysis - checking every island against its controlling nation...");
                 int totalIslandsAnalyzed = 0;
                 HashSet<TIRegionState> analyzedIslands = new HashSet<TIRegionState>(); // Track analyzed islands to avoid duplicates
 
@@ -224,17 +223,8 @@ namespace CreepingBorders
                             // Analyze this island against only its controlling nation's contiguous regions
                             AnalyzeSingleIsland(region, nation, contiguousInfo.FullyContiguousRegions);
                         }
-                        else
-                        {
-                            // Nation has no contiguous regions (shouldn't happen, but log it)
-                            CreepingBordersCls.mod.Logger.Log(
-                                $"[Island Analysis] Island: {region.displayName} | Nation: {nation.displayName} | " +
-                                $"WARNING: Controlling nation has no contiguous regions");
-                        }
                     }
                 }
-
-                CreepingBordersCls.mod.Logger.Log($"[Island Analysis] Analysis complete. Analyzed {totalIslandsAnalyzed} islands across all nations.");
             }
             catch (Exception ex)
             {
@@ -329,10 +319,6 @@ namespace CreepingBorders
         private static readonly Dictionary<(TIRegionState, TIRegionState), float> distanceCache = 
             new Dictionary<(TIRegionState, TIRegionState), float>();
 
-        // Cache for coastal region checks to avoid iterating neighbors repeatedly
-        private static readonly Dictionary<TIRegionState, bool> coastalRegionCache = 
-            new Dictionary<TIRegionState, bool>();
-
         /// <summary>
         /// Clears the distance cache (call after significant game state changes)
         /// </summary>
@@ -342,12 +328,6 @@ namespace CreepingBorders
         }
 
         /// <summary>
-        /// Clears the coastal region cache (call after borders change)
-        /// </summary>
-        public static void ClearCoastalRegionCache()
-        {
-            coastalRegionCache.Clear();
-        }
         /// Generic BFS traversal with custom traversability predicate
         /// Returns set of regions reachable from starting point
         /// </summary>
@@ -508,6 +488,40 @@ namespace CreepingBorders
             return (category, minDistance < float.MaxValue ? minDistance : float.MaxValue, closestRegionName);
         }
 
+        /// <summary>
+        /// Determines if two regions can be connected via naval routes with navalFreedom enabled.
+        /// Checks if both regions have access to common water bodies and if the nation has naval freedom.
+        /// </summary>
+        /// <param name="region1">First region to check</param>
+        /// <param name="region2">Second region to check</param>
+        /// <param name="nation">The nation checking the connection</param>
+        /// <returns>True if regions can be connected via naval routes, false otherwise</returns>
+        private static bool CanConnectViaNavalRoute(TIRegionState region1, TIRegionState region2, TINationState nation)
+        {
+            if (region1 == null || region2 == null || nation == null)
+                return false;
+
+            // Nation must have naval freedom to allow naval movement
+            if (!nation.navalFreedom)
+                return false;
+
+            // Check if regions have accessible water bodies that intersect
+            // This mimics the IsTraversible water-to-water logic
+            try
+            {
+                var region1WaterBodies = region1.GetAccessibleWaterBodies(nation);
+                var region2WaterBodies = region2.GetAccessibleWaterBodies(nation);
+
+                // If water bodies intersect, naval connection is possible
+                return region1WaterBodies.Intersect(region2WaterBodies).Any();
+            }
+            catch
+            {
+                // If any error occurs during water body check, assume no connection
+                return false;
+            }
+        }
+
 
 
         /// <summary>
@@ -518,6 +532,12 @@ namespace CreepingBorders
         {
             if (!CreepingBordersCls.enabled || nation == null || nation.capital == null || 
                 nation.claims == null || nation.claims.Count == 0)
+            {
+                return new List<TIRegionState>();
+            }
+
+            // Validate capital is owned by this nation
+            if (nation.capital.nation != nation)
             {
                 return new List<TIRegionState>();
             }
@@ -604,6 +624,10 @@ namespace CreepingBorders
             if (nation == null || nation.capital == null)
                 return result;
 
+            // Validate capital is owned by this nation before starting BFS
+            if (nation.capital.nation != nation)
+                return result;
+
             // First pass: BFS from capital through adjacency only
             Queue<TIRegionState> queue = new Queue<TIRegionState>();
             queue.Enqueue(nation.capital);
@@ -637,43 +661,41 @@ namespace CreepingBorders
             }
 
             // Second pass: Add islands within distance range (normal and extended)
-            // Skips if ClaimIslandsWithinDistance is disabled or if ClaimIslandsDistanceKM is 0 (early exit optimization)
+            // Skips if ClaimIslandsWithinDistance is disabled or if ClaimIslandsDistanceKM is 0
             if (nation.regions != null && CreepingBordersCls.Settings.ClaimIslandsWithinDistance)
             {
                 float maxDistance = CreepingBordersCls.Settings.ClaimIslandsDistanceKM;
                 if (maxDistance > 0) // Early exit: distance disabled or set to 0
                 {
-                    // Pre-filter islands and coastal continents (cheaper check) before expensive distance calculations
+                    // Filter for islands ONLY - continental regions cannot use distance-based detection
                     var candidateRegions = new List<TIRegionState>();
-                    var regionTypeMap = new Dictionary<TIRegionState, string>();
+                    var regionTypeMap = new Dictionary<TIRegionState, LandmassType>();
 
                     foreach (TIRegionState region in nation.regions)
                     {
                         if (region == null || result.AllContiguousRegions.Contains(region))
                             continue;
 
-                        // Include islands OR coastal continents
                         LandmassType landmassType = region.GetLandmassType();
+
                         if (landmassType == LandmassType.Island)
                         {
                             candidateRegions.Add(region);
-                            regionTypeMap[region] = "Island";
-                        }
-                        else if (landmassType == LandmassType.Continent && IsCoastalRegion(region))
-                        {
-                            candidateRegions.Add(region);
-                            regionTypeMap[region] = "Coastal Continent";
+                            regionTypeMap[region] = LandmassType.Island;
                         }
                     }
 
-                    // Check distance for filtered region candidates
+                    // Check distance for island candidates only
                     if (candidateRegions.Count > 0)
                     {
                         var regionsToAdd = new Dictionary<TIRegionState, bool>(); // true = fully, false = extended
 
                         foreach (TIRegionState region in candidateRegions)
                         {
-                            var (distanceCategory, distance, closestRegionName) = GetExtendedDistanceInfo(region, result.FullyContiguousRegions, maxDistance);
+                            // Islands can use all fully contiguous regions as references
+                            HashSet<TIRegionState> referenceRegions = result.FullyContiguousRegions;
+
+                            var (distanceCategory, distance, closestRegionName) = GetExtendedDistanceInfo(region, referenceRegions, maxDistance);
 
                             if (distanceCategory == 0)
                             {
@@ -681,8 +703,7 @@ namespace CreepingBorders
                                 regionsToAdd[region] = true;
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
-                                    string regionType = regionTypeMap[region];
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} within distance range (fully contiguous) - Distance: {distance:F2} km from {closestRegionName}");
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): Island within distance range (fully contiguous) - Distance: {distance:F2} km from {closestRegionName}");
                                 }
                             }
                             else if (distanceCategory == 1)
@@ -691,8 +712,7 @@ namespace CreepingBorders
                                 regionsToAdd[region] = false;
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
-                                    string regionType = regionTypeMap[region];
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} in extended distance range (partially contiguous) - Distance: {distance:F2} km from {closestRegionName} (max: {maxDistance:F2} km)");
+                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): Island in extended distance range (partially contiguous) - Distance: {distance:F2} km from {closestRegionName} (max: {maxDistance:F2} km)");
                                 }
                             }
                         }
@@ -714,8 +734,7 @@ namespace CreepingBorders
                 }
             }
 
-            // Third pass: Find continental regions connected through coastal island chains
-            // This allows regions separated only by a chain of adjacent islands to be contiguous
+            // Third pass: Find island bridges (islands adjacent to contiguous regions)
             if (nation.regions != null)
             {
                 FindContinentsConnectedByIslands(nation, result);
@@ -743,35 +762,6 @@ namespace CreepingBorders
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Checks if a region (island or continent) is coastal (has water neighbors)
-        /// Used to determine if a region can bridge to other regions through distance-based detection
-        /// Results are cached to avoid repeated neighbor iteration
-        /// </summary>
-        private static bool IsCoastalRegion(TIRegionState region)
-        {
-            if (region == null)
-                return false;
-
-            // Check cache first
-            if (coastalRegionCache.TryGetValue(region, out bool isCached))
-                return isCached;
-
-            // Check if this region has any water neighbors
-            bool isCoastal = false;
-            foreach (TIRegionState neighbor in region.Neighbors)
-            {
-                if (neighbor != null && neighbor.onTheWater)
-                {
-                    isCoastal = true;
-                    break;
-                }
-            }
-
-            coastalRegionCache[region] = isCoastal;
-            return isCoastal;
         }
 
         /// <summary>
@@ -820,18 +810,19 @@ namespace CreepingBorders
                     }
                 }
 
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] Bridge iteration {iterationCount}: Found {coastalIslands.Count} coastal islands");
-                    foreach (var island in coastalIslands)
-                    {
-                        CreepingBordersCls.mod.Logger.Log($"[Contiguity]   - Coastal island: {island.displayName}");
-                    }
-                }
+
 
                 // Adjacency-based bridge detection (only if coastal islands exist)
                 if (coastalIslands.Count > 0)
                 {
+                    // Determine if distance constraints should be applied to adjacency bridges
+                    float maxDistanceForBridge = 0f;
+                    bool shouldCheckDistance = CreepingBordersCls.Settings.ClaimIslandsWithinDistance && 
+                                               CreepingBordersCls.Settings.ClaimIslandsDistanceKM > 0;
+
+                    if (shouldCheckDistance)
+                        maxDistanceForBridge = CreepingBordersCls.Settings.ClaimIslandsDistanceKM;
+
                     // BFS through coastal islands to find connected continental regions and other islands
                     Queue<TIRegionState> queue = new Queue<TIRegionState>(coastalIslands);
                     HashSet<TIRegionState> visitedIslands = new HashSet<TIRegionState>(coastalIslands);
@@ -840,54 +831,65 @@ namespace CreepingBorders
                     {
                         TIRegionState currentIsland = queue.Dequeue();
 
-                        if (CreepingBordersCls.Settings.EnableDebugLogging)
-                        {
-                            CreepingBordersCls.mod.Logger.Log($"[Contiguity]   Processing island: {currentIsland.displayName}");
-                        }
-
                         // Check all neighbors of this coastal island
                         foreach (TIRegionState neighbor in currentIsland.Neighbors)
                         {
-                            if (neighbor == null)
-                            {
-                                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor is null, skipping");
+                            if (neighbor == null || neighbor.nation != nation)
                                 continue;
-                            }
-
-                            if (neighbor.nation != nation)
-                            {
-                                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                                    CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor {neighbor.displayName} not owned by {nation.displayName} (owned by {neighbor.nation?.displayName ?? "none"}), skipping");
-                                continue;
-                            }
 
                             // Use pre-computed island lookup (faster than GetLandmassType())
                             bool isNeighborIsland = islandLookup[neighbor];
 
-                            if (CreepingBordersCls.Settings.EnableDebugLogging)
+                            // If distance checking is enabled, verify the neighbor is within range of a fully contiguous region
+                            if (shouldCheckDistance && !currentContiguity.AllContiguousRegions.Contains(neighbor))
                             {
-                                CreepingBordersCls.mod.Logger.Log($"[Contiguity]     Neighbor: {neighbor.displayName} (Island: {isNeighborIsland}, InContiguity: {currentContiguity.AllContiguousRegions.Contains(neighbor)})");
+                                float minDistance = float.MaxValue;
+                                TIRegionState closestContiguousRegion = null;
+
+                                // Check distance to all fully contiguous regions
+                                foreach (TIRegionState contiguousRegion in currentContiguity.FullyContiguousRegions)
+                                {
+                                    if (contiguousRegion == null)
+                                        continue;
+
+                                    var normalizedKey = neighbor.GetHashCode() < contiguousRegion.GetHashCode()
+                                        ? (neighbor, contiguousRegion)
+                                        : (contiguousRegion, neighbor);
+
+                                    float distance;
+                                    if (!distanceCache.TryGetValue(normalizedKey, out distance))
+                                    {
+                                        distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                                            neighbor.latitude, neighbor.longitude,
+                                            contiguousRegion.latitude, contiguousRegion.longitude,
+                                            neighbor.ref_spaceBody.meanRadius_km);
+                                        distanceCache[normalizedKey] = distance;
+                                    }
+
+                                    if (distance < minDistance)
+                                    {
+                                        minDistance = distance;
+                                        closestContiguousRegion = contiguousRegion;
+                                    }
+                                }
+
+                                // If neighbor is outside distance range, skip it
+                                if (minDistance > maxDistanceForBridge)
+                                {
+                                    if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                    {
+                                        CreepingBordersCls.mod.Logger.Log($"[Contiguity]       {neighbor.displayName} rejected - distance {minDistance:F2} km exceeds max {maxDistanceForBridge:F2} km");
+                                    }
+                                    continue;
+                                }
                             }
 
                             // If neighbor is not yet in contiguity, consider adding it
                             if (currentContiguity.AllContiguousRegions.Add(neighbor))  // Returns true if added
                             {
-                                // Add continental regions
-                                if (!isNeighborIsland)
-                                {
-                                    currentContiguity.FullyContiguousRegions.Add(neighbor);
-                                    foundNewRegions = true;
-
-                                    if (CreepingBordersCls.Settings.EnableDebugLogging)
-                                    {
-                                        CreepingBordersCls.mod.Logger.Log(
-                                            $"[Contiguity] {neighbor.displayName} ({nation.displayName}): " +
-                                            $"Connected to mainland through coastal island chain (via {currentIsland.displayName})");
-                                    }
-                                }
-                                // Add islands that are adjacent to coastal islands (island-to-island bridges)
-                                else if (isNeighborIsland)
+                                // Only add islands through island bridges
+                                // Continental regions cannot inherit contiguity from islands
+                                if (isNeighborIsland)
                                 {
                                     currentContiguity.FullyContiguousRegions.Add(neighbor);
                                     foundNewRegions = true;
@@ -897,6 +899,19 @@ namespace CreepingBorders
                                         CreepingBordersCls.mod.Logger.Log(
                                             $"[Contiguity] {neighbor.displayName} ({nation.displayName}): " +
                                             $"Island bridged to contiguity through {currentIsland.displayName}");
+                                    }
+                                }
+                                else if (!isNeighborIsland)
+                                {
+                                    // Continental neighbors are NOT added through island bridges
+                                    // Remove it from AllContiguousRegions since we added it but won't add to FullyContiguousRegions
+                                    currentContiguity.AllContiguousRegions.Remove(neighbor);
+
+                                    if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                    {
+                                        CreepingBordersCls.mod.Logger.Log(
+                                            $"[Contiguity] {neighbor.displayName} ({nation.displayName}): " +
+                                            $"Continental regions cannot inherit contiguity from islands (blocked)");
                                     }
                                 }
                             }
@@ -1029,6 +1044,10 @@ namespace CreepingBorders
         private static readonly Dictionary<(TIRegionState island, TINationState nation), (List<TIRegionState> fully, List<TIRegionState> partially)> islandDistanceCache =
             new Dictionary<(TIRegionState, TINationState), (List<TIRegionState>, List<TIRegionState>)>();
 
+        // Cache for region contiguity: (region, nation) -> DiscontiguityInfo
+        private static readonly Dictionary<(TIRegionState region, TINationState nation), DiscontiguityInfo> regionContiguityCache =
+            new Dictionary<(TIRegionState, TINationState), DiscontiguityInfo>();
+
         /// <summary>
         /// Clears the landmass type cache (call after game state changes significantly)
         /// </summary>
@@ -1046,14 +1065,44 @@ namespace CreepingBorders
         }
 
         /// <summary>
+        /// Clears the region contiguity cache entry for a specific region and nation
+        /// </summary>
+        public static void ClearRegionContiguityCache(TIRegionState region, TINationState nation)
+        {
+            if (region == null || nation == null)
+                return;
+
+            var key = (region, nation);
+            regionContiguityCache.Remove(key);
+        }
+
+        /// <summary>
+        /// Clears the region contiguity cache for all regions of a specific nation
+        /// </summary>
+        public static void ClearRegionContiguityCacheForNation(TINationState nation)
+        {
+            if (nation == null)
+                return;
+
+            var keysToRemove = regionContiguityCache.Keys
+                .Where(k => k.nation == nation)
+                .ToList();
+
+            foreach (var key in keysToRemove)
+            {
+                regionContiguityCache.Remove(key);
+            }
+        }
+
+        /// <summary>
         /// Clears all caches (call after major game state changes)
         /// </summary>
         public static void ClearAllCaches()
         {
             TINationStateExtensions.ClearDistanceCache();
-            TINationStateExtensions.ClearCoastalRegionCache();
             ClearLandmassTypeCache();
             ClearIslandDistanceCache();
+            regionContiguityCache.Clear();
         }
 
         /// <summary>
@@ -1117,12 +1166,6 @@ namespace CreepingBorders
                 }
             }
 
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[Island Cache] Built cache for {island.displayName} ({nation.displayName}): " +
-                    $"{fullyContiguousList.Count} fully contiguous, {partiallyContiguousList.Count} partially contiguous islands");
-            }
-
             return (fullyContiguousList, partiallyContiguousList);
         }
 
@@ -1141,21 +1184,12 @@ namespace CreepingBorders
             // Check if already cached
             if (islandDistanceCache.TryGetValue(cacheKey, out var cachedLists))
             {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[Island Cache] Cache hit for {island.displayName} ({nation.displayName})");
-                }
                 return cachedLists;
             }
 
             // Not cached, build and cache it
             var newLists = BuildIslandDistanceLists(island, nation, maxDistance);
             islandDistanceCache[cacheKey] = newLists;
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[Island Cache] Cache miss for {island.displayName} ({nation.displayName}) - built new cache entry");
-            }
 
             return newLists;
         }
@@ -1237,46 +1271,123 @@ namespace CreepingBorders
         /// </summary>
         private class DiscontiguityInfo
         {
+            public enum PathType
+            {
+                DirectBFS,           // Direct BFS path to capital
+                FullyContiguousIsland,   // Island within normal distance
+                PartiallyContiguousIsland, // Island within extended distance
+                AllyRoute,           // Reachable through allied territory
+                Discontiguous        // Not contiguous at all
+            }
+
             public bool IsFullyDiscontiguous { get; set; }
             public bool IsPartiallyDiscontiguous { get; set; }
+            public PathType ContiguityPathType { get; set; }
+            public TIRegionState NextHopRegion { get; set; }  // Next region in path (e.g., island next hop, ally capital)
+            public float NextHopDistance { get; set; }        // Distance to next hop (for islands)
+            public TINationState AllyNation { get; set; }     // Allied nation if path goes through allies
         }
 
         /// <summary>
-        /// Calculates discontiguity info for a region (caches result to avoid redundant calculations)
+        /// Calculates discontiguity info for a region based on requirements:
+        /// - Extended regions: Within 2x distance to fully contiguous island
+        /// - Partially discontiguous: Reachable through allied regions
+        /// - Fully discontiguous: Not in either category
+        /// 
+        /// Returns DiscontiguityInfo with IsFullyDiscontiguous and IsPartiallyDiscontiguous flags.
+        /// These flags are only meaningful when the region is not in the main contiguous set.
         /// </summary>
         private static DiscontiguityInfo GetDiscontiguityInfo(TIRegionState region)
         {
             if (region == null || region.nation == null)
-                return new DiscontiguityInfo { IsFullyDiscontiguous = false, IsPartiallyDiscontiguous = false };
+                return new DiscontiguityInfo 
+                { 
+                    IsFullyDiscontiguous = false, 
+                    IsPartiallyDiscontiguous = false,
+                    ContiguityPathType = DiscontiguityInfo.PathType.Discontiguous
+                };
 
             TINationState nation = region.nation;
+
+            // Check cache first
+            var cacheKey = (region, nation);
+            if (regionContiguityCache.TryGetValue(cacheKey, out var cachedInfo))
+            {
+                return cachedInfo;
+            }
 
             // Get the contiguous regions with extended distance tracking
             var contiguousInfo = TINationStateExtensions.GetTrueContiguousRegionsWithExtended(nation);
             var trueContiguousRegions = contiguousInfo.FullyContiguousRegions;
             var extendedRegions = contiguousInfo.ExtendedDistanceRegions;
 
-            // If region is in fully contiguous set, both are false
+            // If region is in fully contiguous set, determine how it achieved contiguity (Direct BFS or via island)
             if (trueContiguousRegions.Contains(region))
             {
                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                 {
                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): Contiguous (part of main landmass)");
                 }
-                return new DiscontiguityInfo { IsFullyDiscontiguous = false, IsPartiallyDiscontiguous = false };
+
+                // Check if this region is an island (added via island route)
+                var result = new DiscontiguityInfo 
+                { 
+                    IsFullyDiscontiguous = false, 
+                    IsPartiallyDiscontiguous = false,
+                    ContiguityPathType = DiscontiguityInfo.PathType.DirectBFS
+                };
+
+                // If it's an island, try to find its next hop (the closest contiguous region or adjacent island)
+                if (region.GetLandmassType() == LandmassType.Island)
+                {
+                    result.NextHopRegion = FindClosestContiguousRegion(region, nation, trueContiguousRegions);
+                    if (result.NextHopRegion != null)
+                    {
+                        float distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                            region.latitude, region.longitude,
+                            result.NextHopRegion.latitude, result.NextHopRegion.longitude,
+                            region.ref_spaceBody.meanRadius_km);
+                        result.NextHopDistance = distance;
+                        result.ContiguityPathType = DiscontiguityInfo.PathType.FullyContiguousIsland;
+                    }
+                }
+
+                regionContiguityCache[cacheKey] = result;
+                return result;
             }
 
-            // If region is in extended distance set, treat as partially discontiguous
+            // If region is in extended distance set, it's partially discontiguous
+            // This applies to islands within extended island-distance range
             if (extendedRegions.Contains(region))
             {
                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                 {
                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): PARTIALLY DISCONTIGUOUS - in extended distance island range");
                 }
-                return new DiscontiguityInfo { IsFullyDiscontiguous = false, IsPartiallyDiscontiguous = true };
+
+                var result = new DiscontiguityInfo 
+                { 
+                    IsFullyDiscontiguous = false, 
+                    IsPartiallyDiscontiguous = true,
+                    ContiguityPathType = DiscontiguityInfo.PathType.PartiallyContiguousIsland
+                };
+
+                // Find the closest contiguous region for the next hop
+                result.NextHopRegion = FindClosestContiguousRegion(region, nation, trueContiguousRegions);
+                if (result.NextHopRegion != null)
+                {
+                    float distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                        region.latitude, region.longitude,
+                        result.NextHopRegion.latitude, result.NextHopRegion.longitude,
+                        region.ref_spaceBody.meanRadius_km);
+                    result.NextHopDistance = distance;
+                }
+
+                regionContiguityCache[cacheKey] = result;
+                return result;
             }
 
-            // If region is discontiguous, check if it's reachable through allies
+            // Remaining regions are discontiguous - check if reachable through allies
             var discontiguousRegions = new HashSet<TIRegionState>();
             foreach (TIRegionState r in nation.regions)
             {
@@ -1284,34 +1395,90 @@ namespace CreepingBorders
                     discontiguousRegions.Add(r);
             }
 
-            // If no discontiguous regions exist, return false for both
+            // If no discontiguous regions exist, region must be in a contiguous set
             if (discontiguousRegions.Count == 0)
-                return new DiscontiguityInfo { IsFullyDiscontiguous = false, IsPartiallyDiscontiguous = false };
+            {
+                var result = new DiscontiguityInfo 
+                { 
+                    IsFullyDiscontiguous = false, 
+                    IsPartiallyDiscontiguous = false,
+                    ContiguityPathType = DiscontiguityInfo.PathType.DirectBFS
+                };
+                regionContiguityCache[cacheKey] = result;
+                return result;
+            }
 
-            // Check if this region is reachable through allies
+            // Check if this discontiguous region is reachable through allied territory
             var allyReachableRegions = GetAllyReachableDiscontiguousRegions(nation, discontiguousRegions);
             bool isAllyReachable = allyReachableRegions.Contains(region);
 
-            DiscontiguityInfo result = new DiscontiguityInfo 
+            DiscontiguityInfo finalResult = new DiscontiguityInfo 
             { 
                 IsFullyDiscontiguous = !isAllyReachable,
-                IsPartiallyDiscontiguous = isAllyReachable
+                IsPartiallyDiscontiguous = isAllyReachable,
+                ContiguityPathType = isAllyReachable ? DiscontiguityInfo.PathType.AllyRoute : DiscontiguityInfo.PathType.Discontiguous
             };
+
+            // If ally-reachable, find which ally is the bridge
+            if (isAllyReachable && nation.allies != null)
+            {
+                foreach (TINationState ally in nation.allies)
+                {
+                    if (ally?.capital != null)
+                    {
+                        finalResult.AllyNation = ally;
+                        break; // Use first ally as the bridge for now
+                    }
+                }
+            }
 
             // Log discontiguity detection
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
-                if (result.IsFullyDiscontiguous)
+                if (finalResult.IsFullyDiscontiguous)
                 {
                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): FULLY DISCONTIGUOUS - not reachable through allied territory");
                 }
-                else if (result.IsPartiallyDiscontiguous)
+                else if (finalResult.IsPartiallyDiscontiguous)
                 {
                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): PARTIALLY DISCONTIGUOUS - reachable through allied territory");
                 }
             }
 
-            return result;
+            // Cache the result
+            regionContiguityCache[cacheKey] = finalResult;
+            return finalResult;
+        }
+
+        /// <summary>
+        /// Helper method to find the closest contiguous region to a given region
+        /// </summary>
+        private static TIRegionState FindClosestContiguousRegion(TIRegionState region, TINationState nation, HashSet<TIRegionState> contiguousRegions)
+        {
+            if (region == null || contiguousRegions == null || contiguousRegions.Count == 0)
+                return null;
+
+            TIRegionState closest = null;
+            float minDistance = float.MaxValue;
+
+            foreach (TIRegionState contiguousRegion in contiguousRegions)
+            {
+                if (contiguousRegion == null || contiguousRegion == region)
+                    continue;
+
+                float distance = TIRegionState.DistanceBetweenTwoCoordinates_km(
+                    region.latitude, region.longitude,
+                    contiguousRegion.latitude, contiguousRegion.longitude,
+                    region.ref_spaceBody.meanRadius_km);
+
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closest = contiguousRegion;
+                }
+            }
+
+            return closest;
         }
 
         /// <summary>
@@ -1323,14 +1490,7 @@ namespace CreepingBorders
             if (region == null)
                 return false;
 
-            bool result = GetDiscontiguityInfo(region).IsFullyDiscontiguous;
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging && result)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[Contiguity] IsFullyDiscontiguous check: {region.displayName} = {result}");
-            }
-
-            return result;
+            return GetDiscontiguityInfo(region).IsFullyDiscontiguous;
         }
 
         /// <summary>
@@ -1342,31 +1502,76 @@ namespace CreepingBorders
             if (region == null)
                 return false;
 
-            bool result = GetDiscontiguityInfo(region).IsPartiallyDiscontiguous;
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging && result)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[Contiguity] IsPartiallyDiscontiguous check: {region.displayName} = {result}");
-            }
-
-            return result;
+            return GetDiscontiguityInfo(region).IsPartiallyDiscontiguous;
         }
 
         /// <summary>
-        /// Gets the contiguity status of this region as a human-readable string
+        /// Gets the contiguity status of this region as a human-readable string with detailed information about the path
         /// </summary>
         public static string GetContiguityStatus(this TIRegionState region)
         {
             if (region == null || region.nation == null)
                 return Loc.T("UI.Nation.Contiguity.Unknown");
 
-            if (region.IsFullyDiscontiguous())
+            TINationState nation = region.nation;
+
+            // Check if this region is the capital
+            if (nation.capital != null && region == nation.capital)
+                return Loc.T("UI.Nation.Contiguity.Capital");
+
+            var discontiguityInfo = GetDiscontiguityInfo(region);
+
+            if (discontiguityInfo.IsFullyDiscontiguous)
                 return Loc.T("UI.Nation.Contiguity.FullyDiscontiguous");
 
-            if (region.IsPartiallyDiscontiguous())
-                return Loc.T("UI.Nation.Contiguity.PartiallyDiscontiguous");
+            // Handle partially discontiguous / fully contiguous cases based on path type
+            switch (discontiguityInfo.ContiguityPathType)
+            {
+                case DiscontiguityInfo.PathType.DirectBFS:
+                    return Loc.T("UI.Nation.Contiguity.DirectBFS", new object[] { nation.capital.displayName });
 
-            return Loc.T("UI.Nation.Contiguity.Contiguous");
+                case DiscontiguityInfo.PathType.FullyContiguousIsland:
+                    if (discontiguityInfo.NextHopRegion != null)
+                    {
+                        // Check if island is blockaded (no naval freedom)
+                        if (region.GetLandmassType() == LandmassType.Island && !nation.navalFreedom)
+                        {
+                            return Loc.T("UI.Nation.Contiguity.IslandRouteFullyBlockaded", 
+                                new object[] { discontiguityInfo.NextHopRegion.displayName, discontiguityInfo.NextHopDistance.ToString("F0") });
+                        }
+
+                        return Loc.T("UI.Nation.Contiguity.IslandRouteFully", 
+                            new object[] { discontiguityInfo.NextHopRegion.displayName, discontiguityInfo.NextHopDistance.ToString("F0") });
+                    }
+                    return Loc.T("UI.Nation.Contiguity.Contiguous");
+
+                case DiscontiguityInfo.PathType.PartiallyContiguousIsland:
+                    if (discontiguityInfo.NextHopRegion != null)
+                    {
+                        // Check if island is blockaded (no naval freedom)
+                        if (region.GetLandmassType() == LandmassType.Island && !nation.navalFreedom)
+                        {
+                            return Loc.T("UI.Nation.Contiguity.IslandRouteExtendedBlockaded",
+                                new object[] { discontiguityInfo.NextHopRegion.displayName, discontiguityInfo.NextHopDistance.ToString("F0") });
+                        }
+
+                        return Loc.T("UI.Nation.Contiguity.IslandRouteExtended",
+                            new object[] { discontiguityInfo.NextHopRegion.displayName, discontiguityInfo.NextHopDistance.ToString("F0") });
+                    }
+                    return Loc.T("UI.Nation.Contiguity.PartiallyDiscontiguous");
+
+                case DiscontiguityInfo.PathType.AllyRoute:
+                    if (discontiguityInfo.AllyNation != null)
+                    {
+                        return Loc.T("UI.Nation.Contiguity.AllyRoute",
+                            new object[] { nation.capital.displayName, discontiguityInfo.AllyNation.displayName });
+                    }
+                    return Loc.T("UI.Nation.Contiguity.PartiallyDiscontiguous");
+
+                case DiscontiguityInfo.PathType.Discontiguous:
+                default:
+                    return Loc.T("UI.Nation.Contiguity.FullyDiscontiguous");
+            }
         }
 
         /// <summary>
@@ -1386,15 +1591,25 @@ namespace CreepingBorders
         /// <summary>
         /// Helper method to find which discontiguous regions can be reached through allied territory
         /// </summary>
-        private static HashSet<TIRegionState> GetAllyReachableDiscontiguousRegions(TINationState nation, HashSet<TIRegionState> discontiguousRegions)
+        public static HashSet<TIRegionState> GetAllyReachableDiscontiguousRegions(TINationState nation, HashSet<TIRegionState> discontiguousRegions)
         {
             HashSet<TIRegionState> reachableThroughAllies = new HashSet<TIRegionState>();
 
-            if (nation == null || nation.allies == null || nation.allies.Count == 0)
+            if (nation == null || nation.capital == null || nation.allies == null || nation.allies.Count == 0)
             {
                 if (CreepingBordersCls.Settings.EnableDebugLogging && discontiguousRegions.Count > 0)
                 {
                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {nation.displayName}: No allies to bridge discontiguous regions. Discontiguous count: {discontiguousRegions.Count}");
+                }
+                return reachableThroughAllies;
+            }
+
+            // Validate capital is owned by this nation
+            if (nation.capital.nation != nation)
+            {
+                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                {
+                    CreepingBordersCls.mod.Logger.Log($"[Contiguity] {nation.displayName}: Capital is not owned by this nation. Skipping ally reachability check.");
                 }
                 return reachableThroughAllies;
             }
@@ -1817,9 +2032,15 @@ namespace CreepingBorders
         {
             HashSet<TIRegionState> reachableThroughAllies = new HashSet<TIRegionState>();
 
-            if (nation == null || nation.allies == null || nation.allies.Count == 0)
+            if (nation == null || nation.capital == null || nation.allies == null || nation.allies.Count == 0)
             {
-                return reachableThroughAllies; // No allies, no regions reachable through them
+                return reachableThroughAllies; // No allies or capital, no regions reachable through them
+            }
+
+            // Validate capital is owned by this nation
+            if (nation.capital.nation != nation)
+            {
+                return reachableThroughAllies; // Capital doesn't belong to this nation
             }
 
             if (discontiguousRegions == null || discontiguousRegions.Count == 0)
@@ -1930,7 +2151,7 @@ namespace CreepingBorders
             if (discontiguousPopulation > 0f || extendedPopulation > 0f)
             {
                 // Check which discontiguous regions can be reached through allied territory
-                var allyReachableRegions = GetDiscontiguousRegionsReachableThroughAllies(nation, discontiguousRegions);
+                var allyReachableRegions = TIRegionStateExtensions.GetAllyReachableDiscontiguousRegions(nation, discontiguousRegions);
 
                 // Split population into categories
                 float fullPenaltyPopulation = 0f;      // Not reachable even through allies
@@ -2030,22 +2251,158 @@ namespace CreepingBorders
     [HarmonyPatch(typeof(TINationState), "TransferRegionsControlTo")]
     public static class Patch_TransferRegionsControlTo
     {
-        static void Postfix()
+        static void Postfix(TINationState __instance, List<TIRegionState> regions, TINationState newNation)
         {
-            if (!CreepingBordersCls.enabled || !CreepingBordersCls.Settings.NoHostileClaims)
+            if (!CreepingBordersCls.enabled)
             {
                 return;
             }
 
-            // Clear all hostile claims from all nations whenever a region changes owner
-            TINationState[] allNations = GameStateManager.AllNations();
-            foreach (TINationState nation in allNations)
+            // Extract transferred regions and receiving nation from parameters
+            var transferredRegions = regions;
+            var receivingNation = newNation;
+
+            if (transferredRegions == null || receivingNation == null)
             {
-                if (nation != null && nation.hostileClaims != null)
+                return;
+            }
+
+            // __instance is the losing nation (transferring regions away)
+            TINationState losingNation = __instance;
+
+            // Invalidate contiguity cache for affected regions and nations
+            foreach (var region in transferredRegions)
+            {
+                if (region != null)
                 {
-                    nation.hostileClaims.Clear();
+                    // Clear cache for this region in both nations
+                    TIRegionStateExtensions.ClearRegionContiguityCache(region, losingNation);
+                    TIRegionStateExtensions.ClearRegionContiguityCache(region, receivingNation);
                 }
             }
+
+            // Also clear the entire nation cache for losing nation since its contiguity may change
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(losingNation);
+
+            // And for receiving nation
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(receivingNation);
+
+            // Clear hostile claims if that setting is enabled
+            if (CreepingBordersCls.Settings.NoHostileClaims)
+            {
+                TINationState[] allNations = GameStateManager.AllNations();
+                foreach (TINationState nation in allNations)
+                {
+                    if (nation != null && nation.hostileClaims != null)
+                    {
+                        nation.hostileClaims.Clear();
+                    }
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "DeclareLimitedWar")]
+    public static class Patch_DeclareLimitedWar
+    {
+        static void Postfix(TINationState __instance)
+        {
+            if (!CreepingBordersCls.enabled)
+            {
+                return;
+            }
+
+            // Clear caches when a war is declared (affects contiguity through ally routes)
+            if (__instance != null)
+            {
+                TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "DeclareFullWar")]
+    public static class Patch_DeclareFullWar
+    {
+        static void Postfix(TINationState __instance)
+        {
+            if (!CreepingBordersCls.enabled)
+            {
+                return;
+            }
+
+            // Clear caches when a full war is declared (affects contiguity through ally routes)
+            if (__instance != null)
+            {
+                TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "JoinWar")]
+    public static class Patch_JoinWar
+    {
+        static void Postfix(TINationState __instance)
+        {
+            if (!CreepingBordersCls.enabled)
+            {
+                return;
+            }
+
+            // Clear caches when nation joins a war (affects ally-based contiguity)
+            if (__instance != null)
+            {
+                TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "WhitePeace")]
+    public static class Patch_WhitePeace
+    {
+        static void Postfix(TINationState __instance)
+        {
+            if (!CreepingBordersCls.enabled)
+            {
+                return;
+            }
+
+            // Clear caches when peace is made (ally status may change, affecting contiguity)
+            if (__instance != null)
+            {
+                TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "InitiateAlliance")]
+    public static class Patch_InitiateAlliance
+    {
+        static void Postfix(TINationState __instance, TINationState newAlly)
+        {
+            if (!CreepingBordersCls.enabled || __instance == null || newAlly == null)
+            {
+                return;
+            }
+
+            // Clear caches for both nations when alliance is formed (affects ally-based contiguity)
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(newAlly);
+        }
+    }
+
+    [HarmonyPatch(typeof(TINationState), "EndAlliance")]
+    public static class Patch_EndAlliance
+    {
+        static void Postfix(TINationState __instance, TINationState nation)
+        {
+            if (!CreepingBordersCls.enabled || __instance == null || nation == null)
+            {
+                return;
+            }
+
+            // Clear caches for both nations when alliance ends (ally-based contiguity may be lost)
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(__instance);
+            TIRegionStateExtensions.ClearRegionContiguityCacheForNation(nation);
         }
     }
 

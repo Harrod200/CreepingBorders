@@ -1,0 +1,114 @@
+HOW DEPLOY OPERATIONS VALIDATE DISEMBARKATION POINTS
+=====================================================
+
+The Deploy operation validates destination regions using the FriendlyRegion() method.
+
+KEY VALIDATION LOGIC:
+====================
+
+From TIArmyState.cs (line 939-950):
+
+```csharp
+public bool FriendlyRegion(TIRegionState region)
+{
+	if (!(region != null))
+		return false;
+
+	if (!(region.nation == this.homeNation))
+	{
+		TINationState nation = region.nation;
+		return nation != null && nation.IsAlliedWith(this.homeNation, false);
+	}
+	return true;
+}
+```
+
+DISEMBARKATION VALIDATION:
+==========================
+
+A region is a VALID disembarkation point if:
+
+1. Region is OWNED by the army's nation
+   → Direct return true (army's own territory)
+
+2. Region is OWNED by an allied nation
+   → Check if region.nation.IsAlliedWith(army.homeNation, false)
+   → true = valid disembarkation
+
+3. Region is OWNED by an enemy nation
+   → return false (invalid disembarkation)
+
+4. Region is NULL
+   → return false (invalid)
+
+IMPORTANT: NOTE THE `false` PARAMETER
+=====================================
+
+The method calls: `nation.IsAlliedWith(this.homeNation, false)`
+
+The `false` parameter likely means:
+- Do NOT include vassals/subjects
+- Only direct/formal allies count
+- OR do NOT include enemies (depends on game logic)
+
+TWO-TIER VALIDATION:
+====================
+
+There's also FriendlyRegionIncludingFullyOccupied() (line 960-962):
+
+```csharp
+public bool FriendlyRegionIncludingFullyOccupied(TIRegionState region)
+{
+	return region != null && (
+		this.FriendlyRegion(region) || 
+		region.armies.Any<TIArmyState>((TIArmyState x) => 
+			x.homeNation == this.homeNation || 
+			this.homeNation.allies.Contains(x.homeNation)) || 
+		(region.IsFullyOccupied() && 
+		 region.GetOccupyingAlliance(false).Contains(this.homeNation))
+	);
+}
+```
+
+This adds TWO ADDITIONAL valid disembarkation scenarios:
+1. Region contains armies from your nation or allied nations
+2. Region is fully occupied and occupying alliance includes your nation
+
+WHAT THIS MEANS FOR ARMIES:
+===========================
+
+An army CAN disembark at a region if:
+
+✓ Region belongs to the army's nation
+✓ Region belongs to an allied nation (formal allies, not vassals)
+✓ Region contains armies from your nation/allies
+✓ Region is fully occupied and your alliance is occupying it
+
+✗ Region belongs to an enemy nation
+✗ Region is neutral but not allied
+✗ Region is not sufficiently controlled
+
+HIERARCHY OF METHODS:
+====================
+
+1. FriendlyRegion() - Basic ownership/alliance check
+   → Used in most movement calculations
+
+2. FriendlyRegionIncludingFullyOccupied() - Broader check
+   → Used in baseLandMovementSpeed_days() (line 689)
+   → Allows disembarkation to occupied regions your alliance controls
+
+3. Neither method checks `onTheWater`
+   → Water/coastal status is NOT part of disembarkation validation
+   → Disembarkation works anywhere your nation has control/alliance
+
+IMPLICATION FOR LUENA:
+====================
+
+Since Luena being "coastal" is determined by having water neighbors:
+- ✗ Water neighbor status does NOT determine if armies can disembark there
+- ✓ Army ownership/alliance does determine disembarkation validity
+- ✓ Even a noncoastal region (no water neighbors) can be a disembarkation point
+- ✗ Even a coastal region (water neighbors) cannot be disembarked to if enemy-owned
+
+The "coastal" classification affects CONTIGUITY, not disembarkation validity.

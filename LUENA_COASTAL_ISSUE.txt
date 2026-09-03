@@ -1,0 +1,71 @@
+CRITICAL FINDING: COASTAL CLASSIFICATION LOGIC
+==============================================
+
+The reason Luena is being classified as COASTAL has been identified and logged.
+
+KEY INSIGHT:
+============
+
+A region is considered COASTAL if it has ANY neighbor with onTheWater == true.
+
+This means Luena might be classified as coastal because:
+1. One of its neighbors is marked as "on the water" in the game engine
+2. This neighbor could be a water tile, ocean region, or coastal water area
+3. The presence of this water neighbor makes the entire region "coastal"
+
+IMPLICATIONS FOR LUENA:
+======================
+
+If Luena is coastal:
+  ✓ Correct: It will be checked for distance-based contiguity (Pass 2)
+  ✓ Correct: It can become contiguous if close enough to contiguous regions
+  ✗ BUT: This might be the SOURCE of the "partial" discontiguity classification
+
+POTENTIAL ISSUE:
+================
+
+If Luena is incorrectly being classified as coastal, it could be because:
+1. One of its neighbors is incorrectly marked as onTheWater
+2. The game engine considers adjacent water as making a region coastal
+3. This causes Luena to enter Pass 2 distance-based detection
+4. Then it could become "extended distance" to contiguous regions
+5. This results in PARTIALLY DISCONTIGUOUS classification
+
+SOLUTION PATHS:
+===============
+
+Option A: Luena should be coastal
+  - Then it's CORRECT to use distance-based detection
+  - If partially discontiguous, it's because it's in extended range
+  - This is the expected behavior
+
+Option B: Luena should NOT be coastal
+  - Then IsCoastalRegion() is returning the wrong value
+  - Need to investigate why it has a water neighbor that shouldn't count
+  - Could be a game data issue or neighbor classification problem
+
+DEBUG OUTPUT WILL SHOW:
+=====================
+
+The logs will show exactly which neighbor is causing Luena to be classified as coastal:
+
+[DEBUG] IsCoastalRegion(Luena): Found water neighbor - marking as coastal
+
+This tells you:
+- The water neighbor name (from the previous log line)
+- That this is why Luena is considered coastal
+- Whether this is intentional or a bug
+
+HOW TO INTERPRET:
+=================
+
+If you see:
+[DEBUG] IsCoastalRegion(Luena): Checking neighbor [WaterRegionName], onTheWater: true
+[DEBUG] IsCoastalRegion(Luena): Found water neighbor - marking as coastal
+
+Then Luena is coastal BECAUSE of [WaterRegionName].
+
+You should verify:
+1. Is [WaterRegionName] a water/ocean region? (If yes, Luena is correctly coastal)
+2. Is [WaterRegionName] a valid neighbor? (Check geography)
+3. Should Luena really be coastal? (Answer determines if classification is correct)

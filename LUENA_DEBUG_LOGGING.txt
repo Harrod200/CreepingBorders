@@ -1,0 +1,73 @@
+LUENA DEBUG LOGGING - SETUP COMPLETE
+====================================
+
+The following debug logging has been added to trace why Luena is being marked as partially discontiguous when it should be fully discontiguous (as a noncoastal region).
+
+DEBUG POINTS ADDED:
+===================
+
+1. GetDiscontiguityInfo() - Main contiguity determination (lines 1295-1380)
+   - Logs when Luena enters GetDiscontiguityInfo
+   - Logs total fully contiguous and extended regions
+   - Logs if Luena is in trueContiguousRegions (not discontiguous)
+   - Logs if Luena is in extendedRegions (partially discontiguous via extended distance)
+   - Logs ally information (name and count)
+   - Logs if Luena is ally-reachable or not
+   - Logs FINAL RESULT with both flags
+
+2. GetTrueContiguousRegionsWithExtended() - Pass 2 (lines 653-712)
+   [DEBUG] Pass 2: Luena landmass type detection
+   - Logs if Luena is an Island or Coastal/Noncoastal Continent
+   - Logs why Luena is/isn't added to distance-based candidates
+   - Logs distance check results (category, distance, closest region)
+   - Logs if Luena is added to fully contiguous or extended distance
+
+3. GetAllyReachableDiscontiguousRegions() - Ally BFS traversal (lines 1476-1588)
+   - Logs if Luena is in the discontiguous regions list
+   - Logs if nation has allies or not
+   - Logs nation and ally region counts
+   - Logs all allied nations
+   - Logs if Luena is found as ally-reachable
+   - Logs if Luena is NOT found as ally-reachable
+
+EXPECTED LOG OUTPUT FOR LUENA:
+==============================
+
+When the game runs, you should see logs like:
+
+[DEBUG] Luena: GetDiscontiguityInfo called. Nation: [Nation Name]
+[DEBUG] Luena: Fully contiguous regions count: X, Extended regions count: Y
+[DEBUG] Pass 2: Luena is NONCOASTAL Continent - NOT adding to candidates (distance-based detection intentionally excluded)
+[DEBUG] Luena: Not in contiguous or extended sets, checking ally reachability
+[DEBUG] Luena: Total discontiguous regions in nation: Z
+[DEBUG] GetAllyReachableDiscontiguousRegions: Luena is in the discontiguous regions list. Nation: [Nation Name]
+[DEBUG] GetAllyReachableDiscontiguousRegions: Luena - Nation regions: X, Ally regions: Y, Total traversable: Z
+[DEBUG] GetAllyReachableDiscontiguousRegions: Luena - Ally: [Ally Name]
+[DEBUG] GetAllyReachableDiscontiguousRegions: Luena NOT found in ally-reachable regions. BFS did not reach it.
+[DEBUG] Luena: FINAL RESULT - FullyDiscontiguous: True, PartiallyDiscontiguous: False
+
+HOW TO ENABLE:
+==============
+
+The debug logging is automatically enabled when ANY of these trace lines appears in the logs.
+It uses the region name matching to trigger logging, so it will not spam - only Luena-related operations are logged.
+
+WHAT TO LOOK FOR:
+=================
+
+If Luena is showing as PARTIALLY DISCONTIGUOUS when it should be FULLY DISCONTIGUOUS:
+
+Check these possibilities in order:
+1. Is Luena being added to extendedRegions in Pass 2?
+   - If yes, check if it's being classified as an Island or Coastal Continent
+   - It should be skipped (not added to candidates) if it's a Noncoastal Continent
+
+2. Is Luena in extendedRegions causing the partial discontiguity?
+   - If yes, that's the issue - a noncoastal region shouldn't use distance-based detection
+
+3. Is Luena being found as ally-reachable?
+   - If yes, check the BFS path - which ally is it connecting through?
+   - For a noncoastal continent, this might be correct (if nation has allies)
+
+4. Are there no allies but Luena is still partial?
+   - If yes, check if it's in extendedRegions (case #2)

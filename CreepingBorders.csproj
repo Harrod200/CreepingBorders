@@ -72,6 +72,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".github\copilot-instructions.md" />
     <None Include="ADJACENCY_MOVEMENT_ANALYSIS.md" />
     <None Include="ALLIED_TERRITORY_AMENDMENT.md" />
     <None Include="ALLIED_TERRITORY_QUICK_REFERENCE.md" />
@@ -79,11 +80,14 @@
     <None Include="AMENDMENT_SUMMARY.md" />
     <None Include="ANALYSIS_COMPLETE.md" />
     <None Include="ANALYSIS_INDEX.md" />
+    <None Include="ARMY_EMBARKATION_SYSTEM.md" />
     <None Include="CHATLOG211_IMPLEMENTATION_VERIFICATION.md" />
     <None Include="CHATLOG212_RESTORATION_SUMMARY.md" />
     <None Include="CODE_COMPARISON.md" />
+    <None Include="CODE_REVIEW_ADDITIONAL_BOTTLENECKS.md" />
     <None Include="CODE_REVIEW_SUMMARY.md" />
     <None Include="COMPLETE_AMENDMENT_DOCUMENTATION.md" />
+    <None Include="COMPLETE_PROJECT_SUMMARY.md" />
     <None Include="CONTIGUITY_ANALYSIS.md" />
     <None Include="CONTIGUITY_BUG_FIX.md" />
     <None Include="CONTIGUITY_BUG_FIX_BEHAVIOR.md" />
@@ -99,6 +103,7 @@
     <None Include="CRASH_FIX_VALIDATION_REPORT.md" />
     <None Include="DEBUG_LOGGING_SUMMARY.md" />
     <None Include="Deploy.bat" />
+    <None Include="EXECUTIVE_SUMMARY.md" />
     <None Include="FINAL_VERIFICATION.md" />
     <None Include="IMPLEMENTATION_CHECKLIST.md" />
     <None Include="IMPLEMENTATION_SUMMARY.md" />
@@ -106,10 +111,22 @@
     <None Include="LOCALIZATION_MIGRATION_SUMMARY.md" />
     <None Include="LOCALIZATION_STRUCTURE_REFERENCE.md" />
     <None Include="modinfo.json" />
+    <None Include="PERFORMANCE_BOTTLENECK_ANALYSIS.md" />
+    <None Include="PHASE1_OPTIMIZATION_SUMMARY.md" />
+    <None Include="PHASE2_OPTIMIZATION_SUMMARY.md" />
     <None Include="QUICK_REFERENCE.md" />
     <None Include="RESTORATION_COMPLETE_SUMMARY.md" />
+    <None Include="TIREGIONSTATE_METHODS.md" />
     <None Include="VERIFICATION_COMPLETE.md" />
     <None Include="VERIFICATION_REPORT.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="COASTAL_LOGIC_ANALYSIS.txt" />
+    <Content Include="CONTIGUITY_VERIFICATION.txt" />
+    <Content Include="DEPLOY_DISEMBARKATION_VALIDATION.txt" />
+    <Content Include="LUENA_COASTAL_ISSUE.txt" />
+    <Content Include="LUENA_DEBUG_LOGGING.txt" />
+    <Content Include="LUENA_FLOW_ANALYSIS.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
