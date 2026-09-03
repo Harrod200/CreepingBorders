@@ -360,4 +360,7 @@ MigrationBackup/
 .ionide/
 
 # Fody - auto-generated XML schema
+
+# Chat logs from Copilot sessions
+Chatlogs/
 FodyWeavers.xsd
