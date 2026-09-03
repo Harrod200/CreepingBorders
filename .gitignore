@@ -363,4 +363,13 @@ MigrationBackup/
 
 # Chat logs from Copilot sessions
 Chatlogs/
+
+# Analysis and debug files
+*_ANALYSIS.txt
+*_ANALYSIS.md
+*_DEBUG*.txt
+*_VALIDATION.txt
+*_ISSUE.txt
+*_FLOW*.txt
+BenchmarkSuite*/
 FodyWeavers.xsd
