@@ -631,8 +631,9 @@ namespace CreepingBorders
                         if (region != null && !result.AllContiguousRegions.Contains(region))
                         {
                             // Include islands OR coastal continents
-                            bool isIsland = region.GetLandmassType() == LandmassType.Island;
-                            bool isCoastalContinent = region.GetLandmassType() == LandmassType.Continent && IsCoastalRegion(region);
+                            LandmassType landmassType = region.GetLandmassType();
+                            bool isIsland = landmassType == LandmassType.Island;
+                            bool isCoastalContinent = landmassType == LandmassType.Continent && IsCoastalRegion(region);
 
                             if (isIsland || isCoastalContinent)
                             {
@@ -644,8 +645,8 @@ namespace CreepingBorders
                     // Check distance for filtered region candidates
                     if (candidateRegions.Count > 0)
                     {
-                        var regionsToAddFully = new HashSet<TIRegionState>();
-                        var regionsToAddExtended = new HashSet<TIRegionState>();
+                        var regionsToAdd = new Dictionary<TIRegionState, bool>(); // true = fully, false = extended
+                        Dictionary<TIRegionState, string> regionTypeCache = new Dictionary<TIRegionState, string>();
 
                         foreach (TIRegionState region in candidateRegions)
                         {
@@ -654,36 +655,39 @@ namespace CreepingBorders
                             if (distanceCategory == 0)
                             {
                                 // Within normal range - fully contiguous
-                                regionsToAddFully.Add(region);
+                                regionsToAdd[region] = true;
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
                                     string regionType = region.GetLandmassType() == LandmassType.Island ? "Island" : "Coastal Continent";
+                                    regionTypeCache[region] = regionType;
                                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} within distance range (fully contiguous) - Distance: {distance:F2} km from {closestRegionName}");
                                 }
                             }
                             else if (distanceCategory == 1)
                             {
                                 // Extended range - partially contiguous
-                                regionsToAddExtended.Add(region);
+                                regionsToAdd[region] = false;
                                 if (CreepingBordersCls.Settings.EnableDebugLogging)
                                 {
                                     string regionType = region.GetLandmassType() == LandmassType.Island ? "Island" : "Coastal Continent";
+                                    regionTypeCache[region] = regionType;
                                     CreepingBordersCls.mod.Logger.Log($"[Contiguity] {region.displayName} ({nation.displayName}): {regionType} in extended distance range (partially contiguous) - Distance: {distance:F2} km from {closestRegionName} (max: {maxDistance:F2} km)");
                                 }
                             }
                         }
 
-                        // Add discovered regions
-                        foreach (TIRegionState region in regionsToAddFully)
+                        // Add all discovered regions in single pass
+                        foreach (var kvp in regionsToAdd)
                         {
-                            result.FullyContiguousRegions.Add(region);
-                            result.AllContiguousRegions.Add(region);
-                        }
-
-                        foreach (TIRegionState region in regionsToAddExtended)
-                        {
-                            result.ExtendedDistanceRegions.Add(region);
-                            result.AllContiguousRegions.Add(region);
+                            result.AllContiguousRegions.Add(kvp.Key);
+                            if (kvp.Value)
+                            {
+                                result.FullyContiguousRegions.Add(kvp.Key);
+                            }
+                            else
+                            {
+                                result.ExtendedDistanceRegions.Add(kvp.Key);
+                            }
                         }
                     }
                 }
@@ -723,22 +727,30 @@ namespace CreepingBorders
         /// <summary>
         /// Checks if a region (island or continent) is coastal (has water neighbors)
         /// Used to determine if a region can bridge to other regions through distance-based detection
+        /// Results are cached to avoid repeated neighbor iteration
         /// </summary>
         private static bool IsCoastalRegion(TIRegionState region)
         {
             if (region == null)
                 return false;
 
+            // Check cache first
+            if (coastalRegionCache.TryGetValue(region, out bool isCached))
+                return isCached;
+
             // Check if this region has any water neighbors
+            bool isCoastal = false;
             foreach (TIRegionState neighbor in region.Neighbors)
             {
                 if (neighbor != null && neighbor.onTheWater)
                 {
-                    return true;
+                    isCoastal = true;
+                    break;
                 }
             }
 
-            return false;
+            coastalRegionCache[region] = isCoastal;
+            return isCoastal;
         }
 
         /// <summary>
@@ -965,6 +977,10 @@ namespace CreepingBorders
         private static readonly Dictionary<TIRegionState, LandmassType> landmassTypeCache = 
             new Dictionary<TIRegionState, LandmassType>();
 
+        // Cache for coastal region checks to avoid iterating neighbors repeatedly
+        private static readonly Dictionary<TIRegionState, bool> coastalRegionCache = 
+            new Dictionary<TIRegionState, bool>();
+
         // Cache for island distance lists: (island, nation) -> (fully contiguous list, partially contiguous list)
         private static readonly Dictionary<(TIRegionState island, TINationState nation), (List<TIRegionState> fully, List<TIRegionState> partially)> islandDistanceCache =
             new Dictionary<(TIRegionState, TINationState), (List<TIRegionState>, List<TIRegionState>)>();
@@ -975,6 +991,14 @@ namespace CreepingBorders
         public static void ClearLandmassTypeCache()
         {
             landmassTypeCache.Clear();
+        }
+
+        /// <summary>
+        /// Clears the coastal region cache (call after borders change)
+        /// </summary>
+        public static void ClearCoastalRegionCache()
+        {
+            coastalRegionCache.Clear();
         }
 
         /// <summary>
@@ -991,6 +1015,7 @@ namespace CreepingBorders
         public static void ClearAllCaches()
         {
             ClearLandmassTypeCache();
+            ClearCoastalRegionCache();
             ClearIslandDistanceCache();
         }
 
