@@ -3088,22 +3088,22 @@ namespace CreepingBorders
 
         public new string GetDisplayName()
         {
-            return Loc.T("RegionSelectorPlaceholder.displayName");
+            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed");
         }
 
         public new string GetDescription()
         {
-            return Loc.T("RegionSelectorPlaceholder.description");
+            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail");
         }
 
         public new string GetTargetSelectionHeaderText()
         {
-            return Loc.T("RegionSelectorPlaceholder.targetHeader");
+            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed");
         }
 
         public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
         {
-            return Loc.T("RegionSelectorPlaceholder.confirmText", new object[] { target.displayName });
+            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary", new object[] { target.displayName });
         }
 
         public override bool Allowed(TINationState nation)
@@ -3215,22 +3215,22 @@ namespace CreepingBorders
 
         public new string GetDisplayName()
         {
-            return Loc.T("LegitimiseClaimOption.displayName");
+            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed");
         }
 
         public new string GetDescription()
         {
-            return Loc.T("LegitimiseClaimOption.description");
+            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail");
         }
 
         public new string GetTargetSelectionHeaderText()
         {
-            return Loc.T("LegitimiseClaimOption.targetHeader");
+            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed");
         }
 
         public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
         {
-            return Loc.T("LegitimiseClaimOption.confirmText", new object[] { target.displayName });
+            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary", new object[] { enactingNation.displayName, target.displayName });
         }
 
 

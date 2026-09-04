@@ -1,12 +1,18 @@
-// CreepingBorders Mod - Policy Option Notifications
-// These strings are shown when policy options are selected and enacted
+// CreepingBorders Mod - Policy Option Localization Strings
+// These strings are used for policy option display names, descriptions, confirmations, and notifications
 
 // Region Selector Placeholder - Set Capital
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed=Set Capital Region
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary=Nation has set {0} as its new capital
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail={0} has set {1} as its new capital region, replacing the previous capital {2}. This action cost 90 influence.
+// Hed: Used as display name and target selection header
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed=Set Capital
+// Detail: Used as description text
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail=Select a region to set as your nation's capital. (Costs 90 influence)
+// Summary: Used as confirmation prompt template with {0} = target region name
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary=Set {0} as capital?
 
 // Legitimise Claim - Convert Hostile Claim to Friendly
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed=Claim Legitimised
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary={0} has legitimised its claim on {1}
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail={0} has converted its hostile claim on {1} to a friendly claim, establishing a more stable legal basis for future territorial acquisition. This action cost 90 influence.
+// Hed: Used as display name and target selection header
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed=Legitimise Claim
+// Detail: Used as description text
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail=Convert a hostile claim to a friendly claim. (Costs 90 influence)
+// Summary: Used as confirmation prompt template with {0} = nation name, {1} = target region name
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary=Legitimise claim on {1}?
