@@ -3088,22 +3088,22 @@ namespace CreepingBorders
 
         public new string GetDisplayName()
         {
-            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed");
+            return Loc.T("RegionSelectorPlaceholder.displayName");
         }
 
         public new string GetDescription()
         {
-            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail");
+            return Loc.T("RegionSelectorPlaceholder.description");
         }
 
         public new string GetTargetSelectionHeaderText()
         {
-            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed");
+            return Loc.T("RegionSelectorPlaceholder.targetHeader");
         }
 
         public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
         {
-            return Loc.T("UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary", new object[] { target.displayName });
+            return Loc.T("RegionSelectorPlaceholder.confirmText", new object[] { target.displayName });
         }
 
         public override bool Allowed(TINationState nation)
@@ -3207,35 +3207,34 @@ namespace CreepingBorders
         public override PolicyType GetPolicyType()
         {
             if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPolicyType() called - returning CancelOption");
+                 {
+                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPolicyType() called - returning CancelOption");
+                }
+                return PolicyType.CancelOption; // Use as placeholder type
             }
-            return PolicyType.CancelOption; // Use as placeholder type
-        }
 
-        public new string GetDisplayName()
-        {
-            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed");
-        }
+            public new string GetDisplayName()
+            {
+                return Loc.T("LegitimiseClaimOption.displayName");
+            }
 
-        public new string GetDescription()
-        {
-            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail");
-        }
+            public new string GetDescription()
+            {
+                return Loc.T("LegitimiseClaimOption.description");
+            }
 
-        public new string GetTargetSelectionHeaderText()
-        {
-            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed");
-        }
+            public new string GetTargetSelectionHeaderText()
+            {
+                return Loc.T("LegitimiseClaimOption.targetHeader");
+            }
 
-        public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
-        {
-            return Loc.T("UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary", new object[] { enactingNation.displayName, target.displayName });
-        }
+            public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
+            {
+                return Loc.T("LegitimiseClaimOption.confirmText", new object[] { target.displayName });
+            }
 
 
-
-        public override bool Allowed(TINationState nation)
+            public override bool Allowed(TINationState nation)
         {
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {

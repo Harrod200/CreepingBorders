@@ -1,18 +1,13 @@
 // CreepingBorders Mod - Policy Option Localization Strings
-// These strings are used for policy option display names, descriptions, confirmations, and notifications
 
 // Region Selector Placeholder - Set Capital
-// Hed: Used as display name and target selection header
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed=Set Capital
-// Detail: Used as description text
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail=Select a region to set as your nation's capital. (Costs 90 influence)
-// Summary: Used as confirmation prompt template with {0} = target region name
-UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary=Set {0} as capital?
+RegionSelectorPlaceholder.displayName=Set Capital
+RegionSelectorPlaceholder.description=Select a region to set as your nation's capital. (Costs 90 influence)
+RegionSelectorPlaceholder.targetHeader=Select Capital Region
+RegionSelectorPlaceholder.confirmText=Set {0} as capital?
 
 // Legitimise Claim - Convert Hostile Claim to Friendly
-// Hed: Used as display name and target selection header
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed=Legitimise Claim
-// Detail: Used as description text
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail=Convert a hostile claim to a friendly claim. (Costs 90 influence)
-// Summary: Used as confirmation prompt template with {0} = nation name, {1} = target region name
-UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary=Legitimise claim on {1}?
+LegitimiseClaimOption.displayName=Legitimise Claim
+LegitimiseClaimOption.description=Convert a hostile claim to a friendly claim. (Costs 90 influence)
+LegitimiseClaimOption.targetHeader=Select Claim to Legitimise
+LegitimiseClaimOption.confirmText=Legitimise claim on {0}?
