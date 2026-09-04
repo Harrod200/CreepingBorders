@@ -96,6 +96,7 @@
     <None Include="SIZE_PROPERTY_FIX.md" />
     <None Include="Strings.en" />
     <None Include="TESTING_CHECKLIST.md" />
+    <None Include="UINotifications.en" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="CreepingBorders\" />

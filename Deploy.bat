@@ -80,9 +80,9 @@ if not exist "!targetDir!\Localization\en" (
 	echo [+] Created localization directory structure
 )
 
-REM Use absolute path and simplified check
-set "locSourceFile=C:\Users\Chris\source\repos\CreepingBorders\UINation.en"
-for %%F in ("!locSourceFile!") do if exist "%%F" (
+REM Deploy UINation.en
+set "locSourceFile1=C:\Users\Chris\source\repos\CreepingBorders\UINation.en"
+for %%F in ("!locSourceFile1!") do if exist "%%F" (
 	xcopy /D /Y "%%F" "!targetDir!\Localization\en\" >nul 2>&1
 	if !errorlevel! equ 1 (
 		echo [+] UINation.en deployed to Localization/en/
@@ -91,10 +91,26 @@ for %%F in ("!locSourceFile!") do if exist "%%F" (
 	)
 )
 if not exist "!targetDir!\Localization\en\UINation.en" (
-	if exist "!locSourceFile!" (
-		echo [!] WARNING: Direct copy required
-		copy "!locSourceFile!" "!targetDir!\Localization\en\UINation.en" >nul
+	if exist "!locSourceFile1!" (
+		copy "!locSourceFile1!" "!targetDir!\Localization\en\UINation.en" >nul
 		echo [+] UINation.en copied successfully
+	)
+)
+
+REM Deploy UINotifications.en
+set "locSourceFile2=C:\Users\Chris\source\repos\CreepingBorders\UINotifications.en"
+for %%F in ("!locSourceFile2!") do if exist "%%F" (
+	xcopy /D /Y "%%F" "!targetDir!\Localization\en\" >nul 2>&1
+	if !errorlevel! equ 1 (
+		echo [+] UINotifications.en deployed to Localization/en/
+	) else (
+		echo [~] UINotifications.en already current
+	)
+)
+if not exist "!targetDir!\Localization\en\UINotifications.en" (
+	if exist "!locSourceFile2!" (
+		copy "!locSourceFile2!" "!targetDir!\Localization\en\UINotifications.en" >nul
+		echo [+] UINotifications.en copied successfully
 	)
 )
 

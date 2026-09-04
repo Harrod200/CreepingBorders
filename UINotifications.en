@@ -1,0 +1,12 @@
+// CreepingBorders Mod - Policy Option Notifications
+// These strings are shown when policy options are selected and enacted
+
+// Region Selector Placeholder - Set Capital
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Hed=Set Capital Region
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Summary=Nation has set {0} as its new capital
+UI.Notifications.CreepingBorders.RegionSelectorPlaceholder.Detail={0} has set {1} as its new capital region, replacing the previous capital {2}. This action cost 90 influence.
+
+// Legitimise Claim - Convert Hostile Claim to Friendly
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Hed=Claim Legitimised
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Summary={0} has legitimised its claim on {1}
+UI.Notifications.CreepingBorders.LegitimiseClaimOption.Detail={0} has converted its hostile claim on {1} to a friendly claim, establishing a more stable legal basis for future territorial acquisition. This action cost 90 influence.
