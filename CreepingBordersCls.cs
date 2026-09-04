@@ -2409,13 +2409,11 @@ namespace CreepingBorders
                 // Split population into categories
                 float fullPenaltyPopulation = 0f;      // Not reachable even through allies
                 float halfPenaltyPopulation = extendedPopulation;  // Start with extended islands, add ally-reachable
-                float doublePenaltyPopulation = 0f;    // Hostile regions that are discontiguous (double penalty)
 
                 // For detailed logging
                 List<string> fullyDiscontiguousRegions = new List<string>();
                 List<string> partiallyDiscontiguousRegions = new List<string>();
                 List<string> extendedIslands = new List<string>();
-                List<string> hostileDiscontiguousRegions = new List<string>();
 
                 // Log extended islands
                 if (CreepingBordersCls.Settings.EnableDebugLogging && extendedRegions.Count > 0)
@@ -2429,17 +2427,7 @@ namespace CreepingBorders
 
                 foreach (TIRegionState region in discontiguousRegions)
                 {
-                    // Check if this region is hostile (partial or fully discontiguous hostile claim)
-                    bool isHostile = region.hostileRegion;
-
-                    if (isHostile)
-                    {
-                        // Hostile discontiguous regions get DOUBLE penalty
-                        doublePenaltyPopulation += region.population;
-                        if (CreepingBordersCls.Settings.EnableDebugLogging)
-                            hostileDiscontiguousRegions.Add(region.displayName);
-                    }
-                    else if (allyReachableRegions.Contains(region))
+                    if (allyReachableRegions.Contains(region))
                     {
                         halfPenaltyPopulation += region.population;
                         if (CreepingBordersCls.Settings.EnableDebugLogging)
@@ -2455,13 +2443,11 @@ namespace CreepingBorders
 
                 // Calculate weighted penalty
                 // Full penalty for unreachable regions, half penalty for ally-reachable regions and extended islands
-                // DOUBLE penalty for hostile discontiguous regions
                 float malusPercentage = CreepingBordersCls.Settings.DiscontiguityMalusPercentage / 100f;
                 float fullPenalty = -(fullPenaltyPopulation / 1000000f) * malusPercentage;
                 float halfPenalty = -(halfPenaltyPopulation / 1000000f) * malusPercentage * 0.5f;  // Halved!
-                float doublePenalty = -(doublePenaltyPopulation / 1000000f) * malusPercentage * 2f;  // DOUBLED!
 
-                float totalPenalty = fullPenalty + halfPenalty + doublePenalty;
+                float totalPenalty = fullPenalty + halfPenalty;
                 float clampedPenalty = Mathf.Clamp(totalPenalty, -10f, 0f);
 
                 if (CreepingBordersCls.Settings.EnableDebugLogging)
@@ -2478,16 +2464,6 @@ namespace CreepingBorders
                         {
                             debugLog.AppendLine($"    - {regionName}");
                         }
-                    }
-
-                    if (hostileDiscontiguousRegions.Count > 0)
-                    {
-                        debugLog.AppendLine($"  Hostile Discontiguous ({hostileDiscontiguousRegions.Count} regions, {doublePenaltyPopulation:N0} pop) [DOUBLE Penalty]:");
-                        foreach (string regionName in hostileDiscontiguousRegions)
-                        {
-                            debugLog.AppendLine($"    - {regionName}");
-                        }
-                        debugLog.AppendLine($"    Double Penalty: {doublePenalty:N2}");
                     }
 
                     if (fullyDiscontiguousRegions.Count > 0)
@@ -2834,247 +2810,150 @@ namespace CreepingBorders
     /// Patch for NotificationScreenController.PopulatePolicyOptions
     /// Adds a placeholder region selector option to the policy menu
     /// </summary>
-     [HarmonyPatch(typeof(NotificationScreenController), "PopulatePolicyOptions")]
-     public static class Patch_NotificationScreenController_PopulatePolicyOptions
-     {
-         static void Postfix(NotificationScreenController __instance)
-         {
-             try
-             {
-                 CreepingBordersCls.mod.Logger.Log("[RegionSelector] Attempting to add region selector option...");
+    [HarmonyPatch(typeof(NotificationScreenController), "PopulatePolicyOptions")]
+    public static class Patch_NotificationScreenController_PopulatePolicyOptions
+    {
+        static void Postfix(NotificationScreenController __instance)
+        {
+            try
+            {
+                // Get the current nation
+                var currentNationField = typeof(NotificationScreenController).GetField("currentNation",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-                 // Get the current nation
-                 var currentNationField = typeof(NotificationScreenController).GetField("currentNation",
-                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (currentNationField == null)
+                {
+                    CreepingBordersCls.mod.Logger.Error("[RegionSelector] Could not access currentNation field");
+                    return;
+                }
 
-                 if (currentNationField == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not access currentNation field");
-                     return;
-                 }
+                var currentNation = currentNationField.GetValue(__instance) as TINationState;
+                if (currentNation == null)
+                    return;
 
-                 var currentNation = currentNationField.GetValue(__instance) as TINationState;
-                 if (currentNation == null)
-                     return;
+                // Get the policy options list
+                var policyOptionsListField = typeof(NotificationScreenController).GetField("policyOptionsList",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-                 // Get the policy options list (public field)
-                 var policyOptionsListField = typeof(NotificationScreenController).GetField("policyOptionsList",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (policyOptionsListField == null)
+                {
+                    CreepingBordersCls.mod.Logger.Error("[RegionSelector] Could not access policyOptionsList field");
+                    return;
+                }
 
-                 if (policyOptionsListField == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not access policyOptionsList field");
-                     return;
-                 }
+                // Get current list size
+                var selectPolicyPanelField = typeof(NotificationScreenController).GetField("selectPolicyPanelObject",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-                 // Get current list size
-                 var selectPolicyPanelField = typeof(NotificationScreenController).GetField("selectPolicyPanelObject",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (selectPolicyPanelField == null)
+                    return;
 
-                 if (selectPolicyPanelField == null)
-                     return;
+                var selectPolicyPanel = selectPolicyPanelField.GetValue(__instance) as GameObject;
+                if (selectPolicyPanel == null || !selectPolicyPanel.activeInHierarchy)
+                    return;
 
-                 var selectPolicyPanel = selectPolicyPanelField.GetValue(__instance) as GameObject;
-                 if (selectPolicyPanel == null || !selectPolicyPanel.activeInHierarchy)
-                     return;
+                // Get the policy list component
+                var policyListComponent = policyOptionsListField.GetValue(__instance);
 
-                 // Get the policy list component
-                 var policyListComponent = policyOptionsListField.GetValue(__instance);
+                // Get the current size using reflection
+                var getSizeMethod = policyListComponent.GetType().GetMethod("GetListSize",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-                 if (policyListComponent == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: policyListComponent is null");
-                     return;
-                 }
+                if (getSizeMethod == null)
+                    return;
 
-                 // Get the current size using reflection
-                 var sizeProperty = policyListComponent.GetType().GetProperty("size",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var currentSize = (int)getSizeMethod.Invoke(policyListComponent, null);
 
-                 if (sizeProperty == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find size property");
-                     return;
-                 }
+                // Create placeholder policy
+                var placeholderPolicy = new RegionSelectorPlaceholder();
 
-                 var currentSize = (int)sizeProperty.GetValue(policyListComponent);
+                // Check if allowed for current nation
+                if (!placeholderPolicy.Allowed(currentNation))
+                    return;
 
-                 // Create placeholder policy
-                 var placeholderPolicy = new RegionSelectorPlaceholder();
+                // Resize list to include new placeholder item
+                var setListSizeMethod = policyListComponent.GetType().GetMethod("SetListSize",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
+                    null,
+                    new[] { typeof(int), typeof(bool), typeof(bool) },
+                    null);
 
-                 // Check if allowed for current nation
-                 if (!placeholderPolicy.Allowed(currentNation))
-                     return;
+                if (setListSizeMethod == null)
+                {
+                    CreepingBordersCls.mod.Logger.Error("[RegionSelector] Could not find SetListSize method");
+                    return;
+                }
 
-                 // Resize list to include new placeholder item
-                 var setListSizeGenericMethod = policyListComponent.GetType().GetMethod("SetListSize",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                setListSizeMethod.Invoke(policyListComponent, new object[] { currentSize + 1, false, false });
 
-                 if (setListSizeGenericMethod == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find SetListSize method");
-                     return;
-                 }
+                // Get the enumerator to access list items
+                var getEnumeratorMethod = policyListComponent.GetType().GetMethod("GetEnumerator",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-                 // SetListSize is a generic method, need to make it concrete with type parameter
-                 Type controllerType = typeof(PolicyListItemController);
-                 var setListSizeMethod = setListSizeGenericMethod.MakeGenericMethod(controllerType);
+                if (getEnumeratorMethod == null)
+                    return;
 
-                 try
-                 {
-                     setListSizeMethod.Invoke(policyListComponent, new object[] { currentSize + 1, false, false });
-                 }
-                 catch (Exception ex)
-                 {
-                     CreepingBordersCls.mod.Logger.Error($"[RegionSelector] ERROR invoking SetListSize: {ex.Message}");
-                     return;
-                 }
+                var enumerator = getEnumeratorMethod.Invoke(policyListComponent, null) as System.Collections.IEnumerator;
+                if (enumerator == null)
+                    return;
 
-                 // Get the enumerator to access list items
-                 var getEnumeratorMethod = policyListComponent.GetType().GetMethod("GetEnumerator",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                // Navigate to the last item (our new placeholder)
+                int itemIndex = 0;
+                object lastItem = null;
+                while (enumerator.MoveNext())
+                {
+                    if (itemIndex == currentSize) // The new item we just added
+                    {
+                        lastItem = enumerator.Current;
+                        break;
+                    }
+                    itemIndex++;
+                }
 
-                 if (getEnumeratorMethod == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find GetEnumerator method");
-                     return;
-                 }
+                // If we found the item, set it up
+                if (lastItem != null)
+                {
+                    var setListItemMethod = lastItem.GetType().GetMethod("SetListItem",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-                 var enumerator = getEnumeratorMethod.Invoke(policyListComponent, null) as System.Collections.IEnumerator;
-                 if (enumerator == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: enumerator is null");
-                     return;
-                 }
+                    if (setListItemMethod != null)
+                    {
+                        // Check if this is a RegionSelectorListItemController
+                        if (lastItem.GetType().Name == "RegionSelectorListItemController" ||
+                            lastItem.GetType().Name == "PolicyListItemController")
+                        {
+                            try
+                            {
+                                // Try to set as RegionSelectorListItemController first
+                                if (lastItem.GetType().Name == "RegionSelectorListItemController")
+                                {
+                                    setListItemMethod.Invoke(lastItem, new object[] { __instance, placeholderPolicy, currentNation });
+                                }
+                                else
+                                {
+                                    // Fall back to PolicyListItemController interface
+                                    setListItemMethod.Invoke(lastItem, new object[] { __instance, placeholderPolicy as TIPolicyOption, currentNation });
+                                }
 
-                 // Navigate to the last item (our new placeholder)
-                 int itemIndex = 0;
-                 object lastItem = null;
-                 while (enumerator.MoveNext())
-                 {
-                     if (itemIndex == currentSize) // The new item we just added
-                     {
-                         lastItem = enumerator.Current;
-                         break;
-                     }
-                     itemIndex++;
-                 }
-
-                             // If we found the item, set it up
-                             if (lastItem != null)
-                             {
-                                 var setListItemMethod = lastItem.GetType().GetMethod("SetListItem",
-                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                 if (setListItemMethod != null)
-                                 {
-                                     // Check if this is a PolicyListItemController
-                                     if (lastItem.GetType().Name == "PolicyListItemController")
-                                     {
-                                         try
-                                         {
-                                             setListItemMethod.Invoke(lastItem, new object[] { __instance, placeholderPolicy as TIPolicyOption, currentNation });
-                                             CreepingBordersCls.mod.Logger.Log("[RegionSelector] ✓ Region selector option added successfully");
-                                         }
-                                         catch (Exception ex)
-                                         {
-                                             CreepingBordersCls.mod.Logger.Error($"[RegionSelector] ERROR invoking SetListItem: {ex.Message}");
-                                         }
-                                     }
-                                 }
-                             }
-
-                             // Now add the Legitimise Claim option
-                             try
-                             {
-                                 var legitimiseClaimOption = new LegitimiseClaimOption();
-
-                                 // Check if allowed for current nation
-                                 if (!legitimiseClaimOption.Allowed(currentNation))
-                                 {
-                                     CreepingBordersCls.mod.Logger.Log("[LegitimiseClaim] Option not allowed for current nation");
-                                     return;
-                                 }
-
-                                 // Get current list size
-                                 var sizeProperty2 = policyListComponent.GetType().GetProperty("size",
-                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                 if (sizeProperty2 == null)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error("[LegitimiseClaim] ERROR: Could not find size property");
-                                     return;
-                                 }
-
-                                 var currentSize2 = (int)sizeProperty2.GetValue(policyListComponent);
-
-                                 // Resize list to include new option
-                                 try
-                                 {
-                                     setListSizeMethod.Invoke(policyListComponent, new object[] { currentSize2 + 1, false, false });
-                                 }
-                                 catch (Exception ex)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR invoking SetListSize: {ex.Message}");
-                                     return;
-                                 }
-
-                                 // Get the enumerator to access list items
-                                 var enumerator2 = getEnumeratorMethod.Invoke(policyListComponent, null) as System.Collections.IEnumerator;
-                                 if (enumerator2 == null)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error("[LegitimiseClaim] ERROR: enumerator is null");
-                                     return;
-                                 }
-
-                                 // Navigate to the last item (our new legitimise claim option)
-                                 int itemIndex2 = 0;
-                                 object lastItem2 = null;
-                                 while (enumerator2.MoveNext())
-                                 {
-                                     if (itemIndex2 == currentSize2) // The new item we just added
-                                     {
-                                         lastItem2 = enumerator2.Current;
-                                         break;
-                                     }
-                                     itemIndex2++;
-                                 }
-
-                                 // If we found the item, set it up
-                                 if (lastItem2 != null)
-                                 {
-                                     var setListItemMethod2 = lastItem2.GetType().GetMethod("SetListItem",
-                                         System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                     if (setListItemMethod2 != null)
-                                     {
-                                         // Check if this is a PolicyListItemController
-                                         if (lastItem2.GetType().Name == "PolicyListItemController")
-                                         {
-                                             try
-                                             {
-                                                 setListItemMethod2.Invoke(lastItem2, new object[] { __instance, legitimiseClaimOption as TIPolicyOption, currentNation });
-                                                 CreepingBordersCls.mod.Logger.Log("[LegitimiseClaim] ✓ Legitimise claim option added successfully");
-                                             }
-                                             catch (Exception ex)
-                                             {
-                                                 CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR invoking SetListItem: {ex.Message}");
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-                             catch (Exception ex)
-                             {
-                                 CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR adding legitimise claim option: {ex.Message}");
-                             }
-                         }
-                         catch (Exception ex)
-                         {
-                             CreepingBordersCls.mod.Logger.Error($"[RegionSelector] CRITICAL ERROR in PopulatePolicyOptions postfix: {ex.Message}");
-                         }
-                     }
-                 }
+                                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                                {
+                                    CreepingBordersCls.mod.Logger.Log("[RegionSelector] Added region selector placeholder to policy list");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                CreepingBordersCls.mod.Logger.Error($"[RegionSelector] Error setting list item: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                CreepingBordersCls.mod.Logger.Error($"[RegionSelector] Error in PopulatePolicyOptions postfix: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
 
     /// <summary>
     /// Region selector policy option that sets the nation's capital to the selected region
@@ -3086,26 +2965,6 @@ namespace CreepingBorders
             return PolicyType.CancelOption; // Use as placeholder type
         }
 
-        public new string GetDisplayName()
-        {
-            return Loc.T("RegionSelectorPlaceholder.displayName");
-        }
-
-        public new string GetDescription()
-        {
-            return Loc.T("RegionSelectorPlaceholder.description");
-        }
-
-        public new string GetTargetSelectionHeaderText()
-        {
-            return Loc.T("RegionSelectorPlaceholder.targetHeader");
-        }
-
-        public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
-        {
-            return Loc.T("RegionSelectorPlaceholder.confirmText", new object[] { target.displayName });
-        }
-
         public override bool Allowed(TINationState nation)
         {
             return nation != null && nation.extant && nation.regions != null && nation.regions.Count > 0;
@@ -3113,24 +2972,13 @@ namespace CreepingBorders
 
         public override IList<TIGameState> GetPossibleTargets(TINationState policyNation)
         {
-            // Return the nation's regions as possible targets (excluding hostile regions)
+            // Return the nation's regions as possible targets
             if (policyNation == null || policyNation.regions == null)
             {
                 return new List<TIGameState>();
             }
 
-            // Filter out hostile regions - only allow friendly regions as capitals
-            var validRegions = policyNation.regions
-                .Where(region => region != null && (policyNation.hostileClaims == null || !policyNation.hostileClaims.Contains(region)))
-                .Cast<TIGameState>()
-                .ToList();
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[RegionSelector] GetPossibleTargets: {policyNation.displayName} has {policyNation.regions.Count} regions, {validRegions.Count} are valid (non-hostile)");
-            }
-
-            return validRegions;
+            return policyNation.regions.Cast<TIGameState>().ToList();
         }
 
         public override void OnPassage(TINationState enactingNation, TIGameState policyTarget)
@@ -3138,10 +2986,6 @@ namespace CreepingBorders
             // Set the selected region as the nation's capital
             if (enactingNation == null || policyTarget == null)
             {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[RegionSelector] OnPassage: Invalid input - enactingNation={enactingNation}, policyTarget={policyTarget}");
-                }
                 return;
             }
 
@@ -3149,47 +2993,21 @@ namespace CreepingBorders
             var targetRegion = policyTarget as TIRegionState;
             if (targetRegion == null)
             {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[RegionSelector] OnPassage: policyTarget is not a TIRegionState");
-                }
                 return;
             }
 
             // Ensure the target region belongs to this nation
             if (targetRegion.nation != enactingNation)
             {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[RegionSelector] OnPassage: Target region {targetRegion.displayName} belongs to {targetRegion.nation?.displayName}, not {enactingNation.displayName}");
-                }
-                return;
-            }
-
-            // Check if this is a hostile region - should not happen but log if it does
-            if (enactingNation.hostileClaims != null && enactingNation.hostileClaims.Contains(targetRegion))
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[RegionSelector] OnPassage: Cannot set hostile region {targetRegion.displayName} as capital");
-                }
                 return;
             }
 
             // Set the target region as the nation's capital
             enactingNation.SetCapital(targetRegion);
 
-            // Deduct influence cost (90 influence)
-            const float INFLUENCE_COST = 90f;
-            TIFactionState executiveFaction = enactingNation.executiveFaction;
-            if (executiveFaction != null)
-            {
-                executiveFaction.AddToCurrentResource(-INFLUENCE_COST, FactionResource.Influence, false, null);
-            }
-
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
-                CreepingBordersCls.mod.Logger.Log($"[RegionSelector] ✓ {enactingNation.displayName} set capital to {targetRegion.displayName} (cost: {INFLUENCE_COST} influence)");
+                CreepingBordersCls.mod.Logger.Log($"[RegionSelector] {enactingNation.displayName} set capital to {targetRegion.displayName}");
             }
         }
 
@@ -3199,275 +3017,7 @@ namespace CreepingBorders
         }
     }
 
-    /// <summary>
-    /// Policy option that converts hostile claims to friendly claims
-    /// </summary>
-    public class LegitimiseClaimOption : TIPolicyOption
-    {
-        public override PolicyType GetPolicyType()
-        {
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-                 {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPolicyType() called - returning CancelOption");
-                }
-                return PolicyType.CancelOption; // Use as placeholder type
-            }
-
-            public new string GetDisplayName()
-            {
-                return Loc.T("LegitimiseClaimOption.displayName");
-            }
-
-            public new string GetDescription()
-            {
-                return Loc.T("LegitimiseClaimOption.description");
-            }
-
-            public new string GetTargetSelectionHeaderText()
-            {
-                return Loc.T("LegitimiseClaimOption.targetHeader");
-            }
-
-            public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
-            {
-                return Loc.T("LegitimiseClaimOption.confirmText", new object[] { target.displayName });
-            }
-
-
-            public override bool Allowed(TINationState nation)
-        {
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() called for nation={nation?.displayName ?? "null"}");
-            }
-
-            bool isAllowed = nation != null && nation.extant && nation.hostileClaims != null && nation.hostileClaims.Count > 0;
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                if (nation == null)
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() returning false: nation is null");
-                else if (!nation.extant)
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() returning false: nation not extant ({nation.displayName})");
-                else if (nation.hostileClaims == null)
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() returning false: hostileClaims is null ({nation.displayName})");
-                else if (nation.hostileClaims.Count == 0)
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() returning false: no hostile claims ({nation.displayName})");
-                else
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() returning true: {nation.displayName} has {nation.hostileClaims.Count} hostile claims");
-            }
-
-            return isAllowed;
-        }
-
-        public override IList<TIGameState> GetPossibleTargets(TINationState policyNation)
-        {
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== GetPossibleTargets() STARTED =====");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] policyNation={policyNation?.displayName ?? "null"}");
-            }
-
-            // Return only hostile claims on OTHER nations' regions (not on own regions)
-            if (policyNation == null || policyNation.hostileClaims == null)
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    if (policyNation == null)
-                        CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPossibleTargets: policyNation is null - returning empty list");
-                    else
-                        CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPossibleTargets: {policyNation.displayName} has null hostileClaims - returning empty list");
-                }
-                return new List<TIGameState>();
-            }
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Found {policyNation.hostileClaims.Count} total hostile claims for {policyNation.displayName}");
-                foreach (var claim in policyNation.hostileClaims)
-                {
-                    string claimInfo = claim?.displayName ?? "null";
-                    string claimNation = claim?.nation?.displayName ?? "null";
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   - Claim: {claimInfo} (owned by {claimNation})");
-                }
-            }
-
-            // Filter to only claims on regions that don't belong to this nation
-            var otherNationsHostileClaims = policyNation.hostileClaims
-                .Where(region => region != null && region.nation != policyNation)
-                .Cast<TIGameState>()
-                .ToList();
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] After filtering: {otherNationsHostileClaims.Count} claims on other nations");
-                foreach (var claim in otherNationsHostileClaims)
-                {
-                    var claimRegion = claim as TIRegionState;
-                    string claimInfo = claimRegion?.displayName ?? claim?.displayName ?? "unknown";
-                    string claimNation = claimRegion?.nation?.displayName ?? "null";
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   - Valid claim: {claimInfo} (owned by {claimNation})");
-                }
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== GetPossibleTargets() COMPLETED =====");
-            }
-
-            return otherNationsHostileClaims;
-        }
-
-        public override void OnPassage(TINationState enactingNation, TIGameState policyTarget)
-        {
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() STARTED =====");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] enactingNation={enactingNation?.displayName ?? "null"}");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] policyTarget={policyTarget?.displayName ?? "null"}");
-            }
-
-            // Convert the hostile claim to a friendly claim
-            if (enactingNation == null || policyTarget == null)
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✗ VALIDATION FAILED: Invalid input");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   enactingNation={enactingNation?.displayName ?? "null"}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   policyTarget={policyTarget?.displayName ?? "null"}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() ABORTED (null inputs) =====");
-                }
-                return;
-            }
-
-            // Ensure policyTarget is a region
-            var targetRegion = policyTarget as TIRegionState;
-            if (targetRegion == null)
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✗ VALIDATION FAILED: policyTarget is not a TIRegionState");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   policyTarget type: {policyTarget.GetType().Name}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() ABORTED (wrong type) =====");
-                }
-                return;
-            }
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓ Cast to TIRegionState successful: {targetRegion.displayName}");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] targetRegion.nation={targetRegion.nation?.displayName ?? "null"}");
-            }
-
-            // Ensure this is actually a hostile claim on another nation's region
-            if (!enactingNation.hostileClaims.Contains(targetRegion))
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✗ VALIDATION FAILED: Region not in hostile claims");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   {enactingNation.displayName}.hostileClaims.Contains({targetRegion.displayName}) = false");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Available claims for {enactingNation.displayName}: {enactingNation.hostileClaims.Count}");
-                    foreach (var claim in enactingNation.hostileClaims)
-                    {
-                        CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]     - {claim?.displayName ?? "null"}");
-                    }
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() ABORTED (not in claims) =====");
-                }
-                return;
-            }
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓ Region is in hostile claims list");
-            }
-
-            // Ensure the target region belongs to a different nation
-            if (targetRegion.nation == enactingNation)
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✗ VALIDATION FAILED: Cannot legitimise claim on own region");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   targetRegion.nation ({targetRegion.nation.displayName}) == enactingNation ({enactingNation.displayName})");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() ABORTED (own region) =====");
-                }
-                return;
-            }
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓ Region belongs to different nation ({targetRegion.nation.displayName})");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] --- All validations passed, proceeding with action ---");
-            }
-
-            // Convert the hostile claim to a friendly claim
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Calling RemoveHostileClaim({targetRegion.displayName})...");
-            }
-
-            enactingNation.RemoveHostileClaim(targetRegion);
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓ RemoveHostileClaim() completed successfully");
-                bool stillInClaims = enactingNation.hostileClaims.Contains(targetRegion);
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Region still in hostile claims: {stillInClaims}");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Remaining hostile claims for {enactingNation.displayName}: {enactingNation.hostileClaims.Count}");
-            }
-
-            // Deduct influence cost (90 influence)
-            const float INFLUENCE_COST = 90f;
-            TIFactionState executiveFaction = enactingNation.executiveFaction;
-
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-            {
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Attempting influence deduction...");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   INFLUENCE_COST = {INFLUENCE_COST}");
-                CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   executiveFaction = {executiveFaction?.displayName ?? "null"}");
-                if (executiveFaction != null)
-                {
-                    float currentInfluence = executiveFaction.GetCurrentResourceAmount(FactionResource.Influence);
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Current influence before deduction: {currentInfluence}");
-                }
-            }
-
-            if (executiveFaction != null)
-            {
-                executiveFaction.AddToCurrentResource(-INFLUENCE_COST, FactionResource.Influence, false, null);
-
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    float influenceAfter = executiveFaction.GetCurrentResourceAmount(FactionResource.Influence);
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓ Influence deduction completed");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Influence after deduction: {influenceAfter}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ========================================");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ✓✓✓ ACTION COMPLETED SUCCESSFULLY ✓✓✓");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ========================================");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] {enactingNation.displayName} legitimised hostile claim on {targetRegion.displayName}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Cost: {INFLUENCE_COST} influence");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ========================================");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() COMPLETED =====");
-                }
-            }
-            else
-            {
-                if (CreepingBordersCls.Settings.EnableDebugLogging)
-                {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ⚠ WARNING: No executive faction found for {enactingNation.displayName}");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim]   Influence cost NOT deducted!");
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] ===== OnPassage() COMPLETED (with warning) =====");
-                }
-            }
-        }
-
-                public override int Importance(TINationState policyNation, TIGameState target)
-                {
-                    if (CreepingBordersCls.Settings.EnableDebugLogging)
-                    {
-                        CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Importance() called for nation={policyNation?.displayName ?? "null"}, target={target?.displayName ?? "null"} - returning 0");
-                    }
-                    return 0;
-                }
-            }
-
-        }
+}
 
 
 
