@@ -6,7 +6,7 @@ REM Copies compiled artifacts to the mod directory only if source is newer
 REM Deletes cache files from the mod directory
 
 set "sourceDir=C:\Users\Chris\source\repos\CreepingBorders"
-set "targetDir=C:\Games\Steam\steamapps\common\Terra Invicta\Mods\Enabled\CreepingBorders"
+set "targetDir=C:\Games\Steam\steamapps\common\Terra Invicta\Mods\Enabled\What's Yours Is Mine"
 
 echo.
 echo ===============================================
@@ -75,15 +75,27 @@ if !errorlevel! equ 1 (
 
 REM Deploy localization files (only if source is newer)
 echo [*] Checking for localization files...
-if exist "!sourceDir!\UINation.en" (
-	xcopy /D /Y "!sourceDir!\UINation.en" "!targetDir!\" >nul 2>&1
+if not exist "!targetDir!\Localization\en" (
+	mkdir "!targetDir!\Localization\en"
+	echo [+] Created localization directory structure
+)
+
+REM Use absolute path and simplified check
+set "locSourceFile=C:\Users\Chris\source\repos\CreepingBorders\UINation.en"
+for %%F in ("!locSourceFile!") do if exist "%%F" (
+	xcopy /D /Y "%%F" "!targetDir!\Localization\en\" >nul 2>&1
 	if !errorlevel! equ 1 (
-		echo [+] UINation.en deployed (newer version copied)
+		echo [+] UINation.en deployed to Localization/en/
 	) else (
 		echo [~] UINation.en already current
 	)
-) else (
-	echo [~] UINation.en not found (optional)
+)
+if not exist "!targetDir!\Localization\en\UINation.en" (
+	if exist "!locSourceFile!" (
+		echo [!] WARNING: Direct copy required
+		copy "!locSourceFile!" "!targetDir!\Localization\en\UINation.en" >nul
+		echo [+] UINation.en copied successfully
+	)
 )
 
 echo.
