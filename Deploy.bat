@@ -75,42 +75,21 @@ if !errorlevel! equ 1 (
 
 REM Deploy localization files (only if source is newer)
 echo [*] Checking for localization files...
-if not exist "!targetDir!\Localization\en" (
-	mkdir "!targetDir!\Localization\en"
-	echo [+] Created localization directory structure
-)
 
-REM Deploy UINation.en
-set "locSourceFile1=C:\Users\Chris\source\repos\CreepingBorders\UINation.en"
-for %%F in ("!locSourceFile1!") do if exist "%%F" (
-	xcopy /D /Y "%%F" "!targetDir!\Localization\en\" >nul 2>&1
+REM Deploy Strings.en to root directory
+set "stringsFile=C:\Users\Chris\source\repos\CreepingBorders\Strings.en"
+for %%F in ("!stringsFile!") do if exist "%%F" (
+	xcopy /D /Y "%%F" "!targetDir!\" >nul 2>&1
 	if !errorlevel! equ 1 (
-		echo [+] UINation.en deployed to Localization/en/
+		echo [+] Strings.en deployed (newer version copied)
 	) else (
-		echo [~] UINation.en already current
+		echo [~] Strings.en already current
 	)
 )
-if not exist "!targetDir!\Localization\en\UINation.en" (
-	if exist "!locSourceFile1!" (
-		copy "!locSourceFile1!" "!targetDir!\Localization\en\UINation.en" >nul
-		echo [+] UINation.en copied successfully
-	)
-)
-
-REM Deploy UINotifications.en
-set "locSourceFile2=C:\Users\Chris\source\repos\CreepingBorders\UINotifications.en"
-for %%F in ("!locSourceFile2!") do if exist "%%F" (
-	xcopy /D /Y "%%F" "!targetDir!\Localization\en\" >nul 2>&1
-	if !errorlevel! equ 1 (
-		echo [+] UINotifications.en deployed to Localization/en/
-	) else (
-		echo [~] UINotifications.en already current
-	)
-)
-if not exist "!targetDir!\Localization\en\UINotifications.en" (
-	if exist "!locSourceFile2!" (
-		copy "!locSourceFile2!" "!targetDir!\Localization\en\UINotifications.en" >nul
-		echo [+] UINotifications.en copied successfully
+if not exist "!targetDir!\Strings.en" (
+	if exist "!stringsFile!" (
+		copy "!stringsFile!" "!targetDir!\Strings.en" >nul
+		echo [+] Strings.en copied successfully
 	)
 )
 

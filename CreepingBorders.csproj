@@ -72,33 +72,12 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include=".github\copilot-instructions.md" />
-    <None Include="AGGRESSIVE_DEBUG_LOGGING_SUMMARY.md" />
-    <None Include="AGGRESSIVE_LOGGING_DEPLOYMENT.md" />
-    <None Include="CLEANUP_LOCALIZATION_SUMMARY.md" />
-    <None Include="DEBUG_LOGGING_ENHANCEMENTS.md" />
     <None Include="Deploy.bat" />
-    <None Include="DEPLOYMENT_VERIFICATION.md" />
-    <None Include="END_WAR_POLICY_SUMMARY.md" />
-    <None Include="FIELD_REFLECTION_FIX.md" />
-    <None Include="GENERIC_METHOD_FIX.md" />
-    <None Include="IMPLEMENTATION_SUMMARY.md" />
-    <None Include="INFLUENCE_COST_IMPLEMENTATION.md" />
-    <None Include="LEGITIMISE_CLAIM_IMPLEMENTATION.md" />
-    <None Include="LOCALIZATION_STRINGS_ADDED.md" />
     <None Include="modinfo.json" />
-    <None Include="POLICY_FLOW_SUMMARY.md" />
-    <None Include="POLICY_UI_INTEGRATION_ANALYSIS.md" />
-    <None Include="POSTFIX_VERIFICATION_REPORT.md" />
-    <None Include="QUICK_REFERENCE.md" />
-    <None Include="README.md" />
-    <None Include="REGION_SELECTOR_PLACEHOLDER_IMPLEMENTATION.md" />
-    <None Include="SIZE_PROPERTY_FIX.md" />
     <None Include="Strings.en" />
-    <None Include="TESTING_CHECKLIST.md" />
-    <None Include="UINotifications.en" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Assistance\" />
     <Folder Include="CreepingBorders\" />
     <Folder Include="Localization\" />
   </ItemGroup>
