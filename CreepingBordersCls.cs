@@ -44,6 +44,22 @@ namespace CreepingBorders
     {
         public static UnityModManager.ModEntry mod;
         public static CreepingBordersSettings Settings;
+
+        // Shared influence cost for the Set Capital / Legitimise Claim policy options.
+        public const float INFLUENCE_COST = 90f;
+
+        /// <summary>
+        /// True if the nation's executive faction can afford the influence cost of these policy options.
+        /// Mirrors vanilla affordability gating (e.g. federation/unification options disabled without cost).
+        /// </summary>
+        public static bool CanAffordInfluence(TINationState nation)
+        {
+            if (nation == null || nation.executiveFaction == null)
+            {
+                return false;
+            }
+            return nation.executiveFaction.GetCurrentResourceAmount(FactionResource.Influence) >= INFLUENCE_COST;
+        }
         public static bool enabled = true;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
@@ -2711,7 +2727,10 @@ namespace CreepingBorders
 
         public override bool Allowed(TINationState nation)
         {
-            return nation != null && nation.extant && nation.regions != null && nation.regions.Count > 0;
+            // Option shows in the list but is disabled (greyed out, like vanilla federation/unification)
+            // when the executive faction cannot afford the influence cost.
+            return nation != null && nation.extant && nation.regions != null && nation.regions.Count > 0
+                && CreepingBordersCls.CanAffordInfluence(nation);
         }
 
         public override IList<TIGameState> GetPossibleTargets(TINationState policyNation)
@@ -2783,7 +2802,7 @@ namespace CreepingBorders
             enactingNation.SetCapital(targetRegion);
 
             // Deduct influence cost (90 influence)
-            const float INFLUENCE_COST = 90f;
+            const float INFLUENCE_COST = CreepingBordersCls.INFLUENCE_COST;
             TIFactionState executiveFaction = enactingNation.executiveFaction;
             if (executiveFaction != null)
             {
@@ -2844,7 +2863,8 @@ namespace CreepingBorders
                 CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() called for nation={nation?.displayName ?? "null"}");
             }
 
-            bool isAllowed = nation != null && nation.extant && nation.hostileClaims != null && nation.hostileClaims.Count > 0;
+            bool isAllowed = nation != null && nation.extant && nation.hostileClaims != null && nation.hostileClaims.Count > 0
+                && CreepingBordersCls.CanAffordInfluence(nation);
 
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
@@ -3015,7 +3035,7 @@ namespace CreepingBorders
             }
 
             // Deduct influence cost (90 influence)
-            const float INFLUENCE_COST = 90f;
+            const float INFLUENCE_COST = CreepingBordersCls.INFLUENCE_COST;
             TIFactionState executiveFaction = enactingNation.executiveFaction;
 
             if (CreepingBordersCls.Settings.EnableDebugLogging)
