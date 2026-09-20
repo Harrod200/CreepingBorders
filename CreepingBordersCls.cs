@@ -2415,6 +2415,21 @@ namespace CreepingBorders
      [HarmonyPatch(typeof(NotificationScreenController), "PopulatePolicyOptions")]
      public static class Patch_NotificationScreenController_PopulatePolicyOptions
      {
+         /// <summary>
+         /// ListManagerBase destroys surplus children with Object.Destroy, which is deferred
+         /// until end of frame. Vanilla PopulatePolicyOptions just shrank the list, so stale
+         /// children from the previous popup may still exist. Growing the list with SetListSize
+         /// then sees newSize <= childCount and instantiates nothing, and the postfix ends up
+         /// calling SetListItem on a child that is already marked for destruction — the option
+         /// never renders. This trims surplus children immediately so the growth check is truthful.
+         /// </summary>
+         static void TrimListChildrenToSize(object listManager, int targetSize)
+         {
+             var t = ((UnityEngine.Component)listManager).transform;
+             while (t.childCount > targetSize)
+                 UnityEngine.Object.DestroyImmediate(t.GetChild(t.childCount - 1).gameObject);
+         }
+
          static void Postfix(NotificationScreenController __instance)
          {
              try
@@ -2476,6 +2491,11 @@ namespace CreepingBorders
                  }
 
                  var currentSize = (int)sizeProperty.GetValue(policyListComponent);
+
+                 // Remove stale (pending-destroy) surplus children left over from the previous
+                 // popup before growing the list, otherwise SetListSize sees childCount >= newSize
+                 // and the new item is set up on a child that never renders.
+                 TrimListChildrenToSize(policyListComponent, currentSize);
 
                  // Create placeholder policy
                  var placeholderPolicy = new RegionSelectorPlaceholder();
@@ -2585,6 +2605,11 @@ namespace CreepingBorders
                                  }
 
                                  var currentSize2 = (int)sizeProperty2.GetValue(policyListComponent);
+
+                                 // Same deferred-destroy hazard: trim stale surplus children before growing.
+                                 // Note currentSize2 reflects the state after the region-selector block has
+                                 // already grown the list, so this is the size that must exist before appending.
+                                 TrimListChildrenToSize(policyListComponent, currentSize2);
 
                                  // Resize list to include new option
                                  try
