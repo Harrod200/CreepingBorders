@@ -2741,9 +2741,10 @@ namespace CreepingBorders
                 return new List<TIGameState>();
             }
 
-            // Filter out hostile regions - only allow friendly regions as capitals
+            // Sort alphabetically by region display name for a stable, readable list
             var validRegions = policyNation.regions
                 .Where(region => region != null && (policyNation.hostileClaims == null || !policyNation.hostileClaims.Contains(region)))
+                .OrderBy(region => region.displayName, StringComparer.CurrentCulture)
                 .Cast<TIGameState>()
                 .ToList();
 
@@ -2915,9 +2916,11 @@ namespace CreepingBorders
                 }
             }
 
-            // Filter to only claims on regions that don't belong to this nation
+            // Sort first by owner nation name, then by region name, both alphabetically
             var otherNationsHostileClaims = policyNation.hostileClaims
                 .Where(region => region != null && region.nation != policyNation)
+                .OrderBy(region => region.nation != null ? region.nation.displayName : string.Empty, StringComparer.CurrentCulture)
+                .ThenBy(region => region.displayName, StringComparer.CurrentCulture)
                 .Cast<TIGameState>()
                 .ToList();
 
