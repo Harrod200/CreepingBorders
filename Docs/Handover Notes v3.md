@@ -56,6 +56,14 @@ modifications:
 - Islands grant continental regions contiguity (attachment behaviour) — this
   reverses the old "continental regions cannot inherit from islands" rule.
   Flagged as a gameplay change.
+- **Amendment (2026-09-21):** continental-to-continental contiguity may only be
+  *inherited* via an island — two continental regions that are neither adjacent
+  nor island-bridged must never become contiguous through distance-based levels
+  (e.g. Alaska–Kamchatka at 84 km, or Spain–Rabat at 0 km via the polygon
+  overlap, must not auto-connect). Distance-based contiguity applies within a
+  continent only; cross-continental links require either geometric adjacency or
+  an island chain in between. Implement in the connectivity manager as a gate on
+  the inheritance rule, not by altering the distance layer.
 
 ### Checkpoints
 

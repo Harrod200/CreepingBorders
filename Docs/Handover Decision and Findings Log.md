@@ -101,3 +101,22 @@ distance bake. To be attached to the final handover.
 3. No-polygon gaps: Svalbard (covered by Norway's polygon or missing entirely) and Franz Josef Land (missing) mean historical Arctic claims in those areas are unrepresentable; flag for map author.
 
 **Status:** logged for later investigation. No cache changes made.
+
+## 2026-09-21 (cont.) — Continental contiguity design decision
+
+Owner decision: continental-to-continental regions should only inherit
+contiguity **via an island**. There must be no continent-to-continent
+distance-based contiguity anywhere in the connectivity manager.
+
+Rationale (from today's verification work):
+- Alaska–Kamchatka at 84 km and the Spain–Rabat / England–Nantes polygon
+  overlaps (0 km) would otherwise make continents "connected" across water by
+  raw distance alone.
+- Cross-continental movement should require either true geometric adjacency or
+  an island chain bridging the gap (e.g. Java→Sumatra, Bering Strait only if an
+  island sits there — it does not in this dataset).
+
+Implementation note: gate this in the manager's inheritance/BFS logic
+(`isIsland` check), NOT by editing the distance layer or cache — the cache
+remains a pure geometric distance table and stays reusable for other systems.
+Added to Handover Notes v3 implementation plan as a bullet amendment.
