@@ -373,3 +373,7 @@ Chatlogs/
 *_FLOW*.txt
 BenchmarkSuite*/
 FodyWeavers.xsd
+# Vanilla game files (do not redistribute)
+TI Decompiled/
+Cached Data/
+Assembly-CSharp.dll
