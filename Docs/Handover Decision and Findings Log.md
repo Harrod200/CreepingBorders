@@ -157,3 +157,24 @@ Decisions in order, each superseding the last on its point:
 - Repo now lives at /rool-drive/CB/repo (durable), symlinked at ~/handover.
   Durable second copy: github.com/Harrod200/CreepingBorders, master.
   Rule 6 of the efficiency instructions mandates /rool-drive/CB for all work.
+
+## 2026-09-21 evening — Session 6 decisions (C2 revision, C3-culture removal, fixes)
+
+- **D50 — Unity-only assimilation (C2 revised):** assimilation pays flat 0.5%
+  per Unity completion (slider), not per absorption; commit b7e4217.
+- **D51 — Absorption has no direct culture effect; mechanic removed (C3-culture):**
+  `AbsorptionRecognitionRate` deleted, all absorption culture-blending gone
+  (f3dff60). Assimilation now runs exclusively through Unity completions + planned
+  C11 outreach. Owner decision taken in-session.
+- **D52 — Duplication bug pattern:** an append to CulturalInertia.cs duplicated
+  the C8/C9/C10 patch classes AND left the original block outside the namespace
+  with a missing close brace (would not compile). Fixed by keeping the
+  well-formed copy and moving namespace closers to end (1aa7e1e). Rule: after
+  appends, grep class counts + verify braces before build.
+- **D53 — C11 confirm semantics:** `TIPolicyOptionWithConfirm` is AI-approval,
+  not a player payment-confirm; C11 must use vanilla `RequiresTargetConfirm`
+  handling. C11 not implemented this session (stopped at spec stage; notes in
+  cheat sheet).
+- **D54 — stale UI label:** "Unity and recognised absorptions shift culture"
+  rewritten to "Unity completions shift culture" (83213a0).
+- Build green after all changes; working tree clean at 83213a0.

@@ -32,3 +32,12 @@
   repo relocated to /rool-drive/CB/repo; efficiency instructions amended to
   mandate /rool-drive/CB; docs commits 38aeada, 75045e6 pushed.
 - Package re-zipped as v5 with all of the above.
+
+## Session 6 (2026-09-21 evening) — C2 revision, absorption removal, patch fixes; C11 spec only
+
+- C2 revised: flat 0.5% assimilation per Unity completion, slider renamed (b7e4217).
+- Absorption culture mechanic removed entirely; AbsorptionRecognitionRate gone (f3dff60); stale UI label fixed later (83213a0).
+- Fixed duplicated/stranded C8/C9/C10 patch classes in CulturalInertia.cs — block was outside namespace and missing its closing brace; would not have compiled (1aa7e1e).
+- C6–C10 patches verified present, build green.
+- C11 (Cultural Outreach policy): spec researched (registration pattern, Loc keys, influence payment, adjacency-based targeting, RequiresTargetConfirm vs WithConfirm distinction) but NO code written — session ended. Next instance starts with C11 implementation, ~120 credits.
+- Handover Notes updated to v6; package re-zipped.
