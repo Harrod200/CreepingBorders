@@ -36,12 +36,13 @@ wasted 30-50% of their budget re-deriving known things.
 
 6. **Env quirks worth knowing immediately:**
    - $HOME and /tmp are wiped on VM boot; nothing there survives.
-   - NEVER use /scratch as a working location. It is wiped on VM recycle
-     and cost us the git history (commits 3dec515..c522d5e, session 4).
-     The repo lives in /rool-drive/CB/repo (~/handover is a symlink to it) (HOME), and its durable copy is on
+   - Do ALL work under /rool-drive/CB (persists across boots). Never use
+     /scratch, $HOME, or /tmp as a working location — they are wiped on
+     VM boot/recycle, which cost us the git history once
+     (commits 3dec515..c522d5e, session 4).
+     The repo lives at /rool-drive/CB/repo, and its durable copy is on
      GitHub: https://github.com/Harrod200/CreepingBorders. Clone or push
-     there; do not park state on /scratch.
-   - /rool-drive persists across boots. Keep handover zips there.
+     there; do not park state anywhere else.
    - The csproj is old-style net48 built with the modern SDK via
      FrameworkPathOverride - see Build Setup.md before "fixing" it.
    - HintPaths in the csproj may point at the owner's Steam install. Correct
