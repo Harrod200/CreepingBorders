@@ -70,3 +70,9 @@ distance bake. To be attached to the final handover.
   geometry, not a math bug. The old 90-row island-only cache has no Alaska
   row, so there is no like-for-like reference for this pair. Consider adding
   a true Chukotka/Bering pair to the region set if a near-miss check matters.
+
+## Git push complete (09:44)
+- Repo re-initialised in the working copy (it had no `.git`), remote set to `Harrod200/CreepingBorders`, origin/master fetched.
+- Staged only real work: new 3-col `BorderDistanceCache.csv`, `Tools/BakeBorderDistanceCache.py`, `Docs/Handover Decision and Findings Log.md`. Reverted incidental local edits to csproj (local ref paths), Cls.cs debug hook, GeoMath comment, and v2 notes before committing so upstream stays clean.
+- Pushed commit `99ccdaf` to `origin/master` (96fd0d7..99ccdaf). Push verified.
+- Note for next dev: csproj in this VM points references at local paths (/tmp/stubs, /rool-drive); do NOT commit that version upstream.
