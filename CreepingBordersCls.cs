@@ -175,7 +175,7 @@ namespace CreepingBorders
             GUILayout.Space(8f);
             GUILayout.Label("<b>Cultural Inertia</b>", emptyOptions);
             settings.EnableCulturalInertia = GUILayout.Toggle(settings.EnableCulturalInertia, "Enable Cultural Inertia", emptyOptions);
-            GUILayout.Label("Foreign-culture populations drag cohesion; Unity and recognised absorptions shift culture", emptyOptions);
+            GUILayout.Label("Foreign-culture populations drag cohesion; Unity completions shift culture", emptyOptions);
 
             if (settings.EnableCulturalInertia)
             {
