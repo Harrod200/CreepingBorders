@@ -11,16 +11,17 @@ For the next dev picking this up. Read this **before** the v2 notes.
    outputs, not vanilla assets:
    - `BorderDistanceCache.csv` — region-pair border distances (3-column `A,B,distance`, parser-compatible)
    - `PolygonCache.csv` — pre-computed region polygon vertex data (~90k lines)
-3. **Border distance cache regenerated** (commit `9cedafa`) with the edge-to-edge
+3. **Border distance cache regenerated** (commit `99ccdaf`) with the edge-to-edge
    methodology (`PolygonProximity.FindClosestGeoPoints`: closest-point-on-segment
-   between polygon edges, then haversine). 65,703 unique pairs across 363 regions.
-   Min 0.0 km (genuinely touching borders, e.g. Ahvaz–Isfahan), max ~629 km.
-4. **Verification against real-world data.** Java–Sumatra = 7.68 km in the cache;
-   independently recomputed 7.6816 km (match), but real-world Sunda Strait is ~24 km
-   — the game's low-poly polygons *underestimate* straits. Alaska–Siberia reads
-   450 km vs real Bering Strait ~82 km (over-estimate; game geometry again).
-   Conclusion: any distance threshold tuned against game geometry will differ from
-   reality; tune against the game's own numbers.
+   between polygon edges, then haversine). 65,703 unique pairs across 363 regions
+   (= C(363,2), no duplicates, no missing pairs). 3-column parser-compatible format.
+   Bake took ~17 min on the VM; zero runtime OOM after NumPy einsum fix.
+4. **Verification against real-world data (updated 2026-09-21):** Java–Sumatra =
+   24.89 km in the cache vs addendum-confirmed 24.86 km (0.1% match; real-world
+   Sunda Strait ~24 km — the low-poly polygons get it right, the old 7.68 km cache
+   was the parse bug). Alaska–Kamchatka = 83.85 km vs real Bering Strait ~82 km.
+   Ahvaz–Isfahan = 0.0 km. Conclusion: game geometry is trustworthy post-fix; any
+   threshold tuning should use game numbers.
 5. **AdjacentRegions vs Neighbors resolved.** From the decompiled source
    (`TIRegionState.cs`):
    - `AdjacentRegions(bool invading)` — geometry-based, from `adjacencies` dict.
@@ -69,8 +70,8 @@ modifications:
 
 | # | Deliverable | Verify | Est. credits | Status |
 |---|---|---|---|---|
-| C1 | Distance layer in radians + PairKey dedup + bbox filter + cache read/append (-1 sentinel) + result enum (`Known(km)` / `Beyond3X` / `Unknown`) | Builds; Java–Sumatra ≈7.68 km; dedup rows; cache round-trip | ~120 | pending |
-| C2 | Bake script: full 65,703-pair bake incl. -1 bbox entries | Spot-check 3 pairs vs Python reference | ~60 | pending |
+| C1 | Distance layer in radians + PairKey dedup + bbox filter + cache read/append (-1 sentinel) + result enum (`Known(km)` / `Beyond3X` / `Unknown`) | Builds; Java–Sumatra ≈24.86 km; dedup rows; cache round-trip | ~120 | **done** (`7a78218`) |
+| C2 | Bake script: full 65,703-pair bake incl. -1 bbox entries | Spot-check 3 pairs vs Python reference | ~60 | **done** (`99ccdaf`; bake tool at `Tools/BakeBorderDistanceCache.py`) |
 | C3 | `PolygonalRegionConnectivityManager.cs`: fixpoint BFS on `AdjacentRegions(false)`, levels, rival blocking, two polygon passes gated by cache | Builds; level-distribution log dump | ~140 | pending |
 | C4 | Integration: wire into hooks, remap `BFSWithPathScoring` consumers, claims keep `Neighbors` | Builds; debug-logging toggle works | ~100 | pending |
 | C5 | Tests + docs updated, push to git | Green build; pushed | ~60 | pending |
@@ -135,9 +136,18 @@ Estimated remaining: **~620 credits** (plus C2/C3/C4/C5 from the distance plan,
 ~300, still pending). Note C6–C9 form one coherent breakaway cluster; C10–C11
 depend on culture-share queries from C6; C12 last.
 
-### Status note
-C1 is **complete and pushed** (`7a78218`). The Java–Sumatra verification found
-the old cache was built on a column-parsing bug; the new vertex-to-edge math
-gives 24.86 km vs ~24 km real-world (Sunda Strait) — more accurate, not less.
-**C2 (re-bake the cache) is now required before C3/C4**, since the committed
-`BorderDistanceCache.csv` reflects the buggy parse.
+### Status note (updated 2026-09-21)
+C1 **complete and pushed** (`7a78218`). C2 **complete and pushed** (`99ccdaf`,
+script `Tools/BakeBorderDistanceCache.py`): full 65,703-pair bake, validated on
+Java–Sumatra (24.89 km vs 24.86 km reference), Ahvaz–Isfahan (0.0), and
+CanadaArctic–Norilsk (1,724 km, independently rechecked as real geometry).
+**Next: C3/C4**, which are now unblocked. Two design amendments since the plan
+was written: (1) cultural-malus relief applies to rebel breakaways permanently
+(`breakawayParent != null`) and to peacefully released regions as a 2-year
+timestamp grace period; (2) no continent-to-continent distance-based contiguity
+— cross-continental inheritance requires an island bridge (see C6/C8 amendments
+and the connectivity-plan bullet above). Map-data findings logged: England
+polygon includes Gibraltar; England×Nantes overlap at Cotentin; Spain×Rabat
+overlap near Melilla; Calais unowned. See `Handover Decision and Findings Log.md`
+for the full session record (`7a78218`, `99ccdaf`, `ee8d730`, `aecf1c1`,
+`01ef0f2`, `2848ff5`).
