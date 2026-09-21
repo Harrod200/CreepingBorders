@@ -53,6 +53,13 @@ namespace CreepingBorders
         public static float UnityAssimilationStrength => CreepingBordersCls.Settings.UnityAssimilationStrength;
         public static float AbsorptionRecognitionRate => CreepingBordersCls.Settings.AbsorptionRecognitionRate;
 
+        /// <summary>
+        /// C9: global multiplier applied to every SecessionChance roll.
+        /// Default 3x; exposed as a slider in the mod settings UI.
+        /// </summary>
+        public static float SecessionFrequencyMultiplier =>
+            CreepingBordersCls.Settings.SecessionFrequencyMultiplier;
+
         // ======================================================================
         // CULTURE IDENTITIES
         // ======================================================================
@@ -458,6 +465,43 @@ namespace CreepingBorders
             parentNation.Secession(parentNation.HighestUnrestContributor(), seceder, secessionRegions, null);
         }
 
+
+        // ======================================================================
+        // C8: BREAKAWAY 50/50 SPAWN
+        // ======================================================================
+
+        /// <summary>
+        /// C8: when a breakaway nation forms, each transferred region's culture
+        /// composition is rewritten to a ~50/50 split between the parent
+        /// nation's culture and the local (seeded) culture. The parent keeps
+        /// its existing composition for the region. Gated on the mod being
+        /// active; any failure leaves composition untouched.
+        /// </summary>
+        private static void BreakawaySpawnBalance(TINationState newNation, List<TIRegionState> transferringRegions, TINationState parent)
+        {
+            if (!CreepingBordersCls.enabled || !Enabled) return;
+            if (newNation == null || parent == null || transferringRegions == null) return;
+
+            string parentCulture = CultureOfNation(parent);
+            string localCulture = CultureOfNation(newNation);
+            if (string.IsNullOrEmpty(parentCulture) || string.IsNullOrEmpty(localCulture) || parentCulture == localCulture) return;
+
+            foreach (var region in transferringRegions)
+            {
+                if (region == null) continue;
+                try
+                {
+                    var comp = Composition(region);
+                    comp[parentCulture] = 0.5f;
+                    comp[localCulture] = 0.5f;
+                    // Remove any other cultures that may have been present.
+                    foreach (var k in new List<string>(comp.Keys))
+                        if (k != parentCulture && k != localCulture) comp.Remove(k);
+                }
+                catch (Exception) { /* never break secession */ }
+            }
+        }
+
         // ======================================================================
         // HARMONY PATCHES
         // ======================================================================
@@ -543,3 +587,39 @@ namespace CreepingBorders
         }
     }
 }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
+        public static class Patch_SecessionChance
+        {
+            // C9: postfix multiplies the final vanilla chance by the
+            // configured frequency multiplier (default 3x). Applies to both
+            // organic and non-organic rolls. Gated on the mod being active;
+            // on any error the vanilla chance is left untouched.
+            static void Postfix(TINationState __instance, ref float __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    float mult = SecessionFrequencyMultiplier;
+                    if (mult != 1f) __result *= mult;
+                }
+                catch (Exception) { /* never break the roll */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.Secession))]
+        public static class Patch_Secession
+        {
+            // C8: postfix rewrites the culture composition of each transferred
+            // region to a ~50/50 split between parent and local culture.
+            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState newNation, List<TIRegionState> transferringRegions, TINationState liberator)
+            {
+                try
+                {
+                    // C8 applies to secession spawns only, not liberations.
+                    if (liberator != null) return;
+                    BreakawaySpawnBalance(newNation, transferringRegions, __instance);
+                }
+                catch (Exception) { /* never break secession */ }
+            }
+        }

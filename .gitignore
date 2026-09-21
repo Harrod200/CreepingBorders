@@ -3,3 +3,4 @@ obj/
 *.user
 dotnet-install.sh
 PREFLIGHT.sh
+.git-token

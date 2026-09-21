@@ -38,6 +38,7 @@ namespace CreepingBorders
         public float CulturalMismatchMax = 2.0f;
         public float UnityAssimilationStrength = 1.0f;
         public float AbsorptionRecognitionRate = 0.5f;
+        public float SecessionFrequencyMultiplier = 3.0f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -190,6 +191,11 @@ namespace CreepingBorders
                 GUILayout.Space(4f);
                 GUILayout.Label("Absorption Recognition Rate: " + (settings.AbsorptionRecognitionRate * 100f).ToString("F0") + "%", emptyOptions);
                 settings.AbsorptionRecognitionRate = GUILayout.HorizontalSlider(settings.AbsorptionRecognitionRate, 0f, 1f, emptyOptions);
+
+                GUILayout.Space(4f);
+                GUILayout.Label("Secession Frequency Multiplier: " + settings.SecessionFrequencyMultiplier.ToString("F1") + "x", emptyOptions);
+                settings.SecessionFrequencyMultiplier = GUILayout.HorizontalSlider(settings.SecessionFrequencyMultiplier, 0f, 10f, emptyOptions);
+                GUILayout.Label("Multiplies every secession chance roll (default: 3x)", emptyOptions);
             }
 
             // ====================================================================
