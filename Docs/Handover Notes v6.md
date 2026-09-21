@@ -54,9 +54,12 @@ Repo head: 83213a0 (build green, working tree clean).
 |------|--------|
 | C1 distance layer | done, pushed (owner machine) |
 | C2 object placement | done, pushed (owner machine) |
-| C3 connectivity manager | **code complete in this zip** — verify + push |
-| C4 declarative national states | not started |
+| C3 connectivity manager | done (owner machine, locked spec) |
+| C4 declarative national states | cancelled — mod-internal only (locked spec) |
 | C5 rising threat narrative | not started |
+| C6–C10 cultural inertia patches | done (owner machine) |
+| C11 Cultural Outreach policy | spec researched, no code — first coding task |
+| HostileClaimsBlockCreep seed gating | outstanding (D44), do with C11 |
 
 ## C3 quick facts (so the next session doesn't re-derive them)
 - File: `PolygonalRegionConnectivityManager.cs` (~250 lines), self-contained.
