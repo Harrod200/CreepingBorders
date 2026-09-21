@@ -2424,276 +2424,42 @@ namespace CreepingBorders
     // HARMONY PATCHES - POLICY SYSTEM
     // ====================================================================
 
+    // ====================================================================
+    // HARMONY PATCH - POLICY OPTION REGISTRATION (data source, not UI)
+    // ====================================================================
+
     /// <summary>
-    /// Patch for NotificationScreenController.PopulatePolicyOptions
-    /// Adds a placeholder region selector option to the policy menu
+    /// Appends the mod's policy options (Set Capital, Legitimise Claim) to the
+    /// nation's list of settable policy options. The vanilla
+    /// NotificationScreenController.PopulatePolicyOptions iterates this list and
+    /// wires up the UI itself, so no UI code is touched at all. This also fixes
+    /// the "options appear every other popup" class of bug, because the vanilla
+    /// list is never resized or rebuilt from the patch side.
     /// </summary>
-     [HarmonyPatch(typeof(NotificationScreenController), "PopulatePolicyOptions")]
-     public static class Patch_NotificationScreenController_PopulatePolicyOptions
-     {
-         /// <summary>
-         /// ListManagerBase destroys surplus children with Object.Destroy, which is deferred
-         /// until end of frame. Vanilla PopulatePolicyOptions just shrank the list, so stale
-         /// children from the previous popup may still exist. Growing the list with SetListSize
-         /// then sees newSize <= childCount and instantiates nothing, and the postfix ends up
-         /// calling SetListItem on a child that is already marked for destruction — the option
-         /// never renders. This trims surplus children immediately so the growth check is truthful.
-         /// </summary>
-         static void TrimListChildrenToSize(object listManager, int targetSize)
-         {
-             var t = ((UnityEngine.Component)listManager).transform;
-             while (t.childCount > targetSize)
-                 UnityEngine.Object.DestroyImmediate(t.GetChild(t.childCount - 1).gameObject);
-         }
+    [HarmonyPatch(typeof(TINationState), "availableSetPolicyOptions")]
+    public static class Patch_AvailableSetPolicyOptions
+    {
+        static void Postfix(TINationState __instance, bool includeCancel, ref List<TIPolicyOption> __result)
+        {
+            try
+            {
+                if (__instance == null || __result == null)
+                    return;
 
-         static void Postfix(NotificationScreenController __instance)
-         {
-             try
-             {
-                 CreepingBordersCls.mod.Logger.Log("[RegionSelector] Attempting to add region selector option...");
+                var setCapital = new RegionSelectorPlaceholder();
+                if (setCapital.Allowed(__instance))
+                    __result.Add(setCapital);
 
-                 // Get the current nation
-                 var currentNationField = typeof(NotificationScreenController).GetField("currentNation",
-                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                 if (currentNationField == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not access currentNation field");
-                     return;
-                 }
-
-                 var currentNation = currentNationField.GetValue(__instance) as TINationState;
-                 if (currentNation == null)
-                     return;
-
-                 // Get the policy options list (public field)
-                 var policyOptionsListField = typeof(NotificationScreenController).GetField("policyOptionsList",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                 if (policyOptionsListField == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not access policyOptionsList field");
-                     return;
-                 }
-
-                 // Get current list size
-                 var selectPolicyPanelField = typeof(NotificationScreenController).GetField("selectPolicyPanelObject",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                 if (selectPolicyPanelField == null)
-                     return;
-
-                 var selectPolicyPanel = selectPolicyPanelField.GetValue(__instance) as GameObject;
-                 if (selectPolicyPanel == null || !selectPolicyPanel.activeInHierarchy)
-                     return;
-
-                 // Get the policy list component
-                 var policyListComponent = policyOptionsListField.GetValue(__instance);
-
-                 if (policyListComponent == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: policyListComponent is null");
-                     return;
-                 }
-
-                 // Get the current size using reflection
-                 var sizeProperty = policyListComponent.GetType().GetProperty("size",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                 if (sizeProperty == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find size property");
-                     return;
-                 }
-
-                 var currentSize = (int)sizeProperty.GetValue(policyListComponent);
-
-                 // Remove stale (pending-destroy) surplus children left over from the previous
-                 // popup before growing the list, otherwise SetListSize sees childCount >= newSize
-                 // and the new item is set up on a child that never renders.
-                 TrimListChildrenToSize(policyListComponent, currentSize);
-
-                 // Create placeholder policy
-                 var placeholderPolicy = new RegionSelectorPlaceholder();
-
-                 // Check if allowed for current nation
-                 if (!placeholderPolicy.Allowed(currentNation))
-                     return;
-
-                 // Resize list to include new placeholder item
-                 var setListSizeGenericMethod = policyListComponent.GetType().GetMethod("SetListSize",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                 if (setListSizeGenericMethod == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find SetListSize method");
-                     return;
-                 }
-
-                 // SetListSize is a generic method, need to make it concrete with type parameter
-                 Type controllerType = typeof(PolicyListItemController);
-                 var setListSizeMethod = setListSizeGenericMethod.MakeGenericMethod(controllerType);
-
-                 try
-                 {
-                     setListSizeMethod.Invoke(policyListComponent, new object[] { currentSize + 1, false, false });
-                 }
-                 catch (Exception ex)
-                 {
-                     CreepingBordersCls.mod.Logger.Error($"[RegionSelector] ERROR invoking SetListSize: {ex.Message}");
-                     return;
-                 }
-
-                 // Get the enumerator to access list items
-                 var getEnumeratorMethod = policyListComponent.GetType().GetMethod("GetEnumerator",
-                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                 if (getEnumeratorMethod == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: Could not find GetEnumerator method");
-                     return;
-                 }
-
-                 var enumerator = getEnumeratorMethod.Invoke(policyListComponent, null) as System.Collections.IEnumerator;
-                 if (enumerator == null)
-                 {
-                     CreepingBordersCls.mod.Logger.Error("[RegionSelector] ERROR: enumerator is null");
-                     return;
-                 }
-
-                 // Navigate to the last item (our new placeholder)
-                 int itemIndex = 0;
-                 object lastItem = null;
-                 while (enumerator.MoveNext())
-                 {
-                     if (itemIndex == currentSize) // The new item we just added
-                     {
-                         lastItem = enumerator.Current;
-                         break;
-                     }
-                     itemIndex++;
-                 }
-
-                             // If we found the item, set it up
-                             if (lastItem != null)
-                             {
-                                 var setListItemMethod = lastItem.GetType().GetMethod("SetListItem",
-                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                 if (setListItemMethod != null)
-                                 {
-                                     // Check if this is a PolicyListItemController
-                                     if (lastItem.GetType().Name == "PolicyListItemController")
-                                     {
-                                         try
-                                         {
-                                             setListItemMethod.Invoke(lastItem, new object[] { __instance, placeholderPolicy as TIPolicyOption, currentNation });
-                                             CreepingBordersCls.mod.Logger.Log("[RegionSelector] ✓ Region selector option added successfully");
-                                         }
-                                         catch (Exception ex)
-                                         {
-                                             CreepingBordersCls.mod.Logger.Error($"[RegionSelector] ERROR invoking SetListItem: {ex.Message}");
-                                         }
-                                     }
-                                 }
-                             }
-
-                             // Now add the Legitimise Claim option
-                             try
-                             {
-                                 var legitimiseClaimOption = new LegitimiseClaimOption();
-
-                                 // Check if allowed for current nation
-                                 if (!legitimiseClaimOption.Allowed(currentNation))
-                                 {
-                                     CreepingBordersCls.mod.Logger.Log("[LegitimiseClaim] Option not allowed for current nation");
-                                     return;
-                                 }
-
-                                 // Get current list size
-                                 var sizeProperty2 = policyListComponent.GetType().GetProperty("size",
-                                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                 if (sizeProperty2 == null)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error("[LegitimiseClaim] ERROR: Could not find size property");
-                                     return;
-                                 }
-
-                                 var currentSize2 = (int)sizeProperty2.GetValue(policyListComponent);
-
-                                 // Same deferred-destroy hazard: trim stale surplus children before growing.
-                                 // Note currentSize2 reflects the state after the region-selector block has
-                                 // already grown the list, so this is the size that must exist before appending.
-                                 TrimListChildrenToSize(policyListComponent, currentSize2);
-
-                                 // Resize list to include new option
-                                 try
-                                 {
-                                     setListSizeMethod.Invoke(policyListComponent, new object[] { currentSize2 + 1, false, false });
-                                 }
-                                 catch (Exception ex)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR invoking SetListSize: {ex.Message}");
-                                     return;
-                                 }
-
-                                 // Get the enumerator to access list items
-                                 var enumerator2 = getEnumeratorMethod.Invoke(policyListComponent, null) as System.Collections.IEnumerator;
-                                 if (enumerator2 == null)
-                                 {
-                                     CreepingBordersCls.mod.Logger.Error("[LegitimiseClaim] ERROR: enumerator is null");
-                                     return;
-                                 }
-
-                                 // Navigate to the last item (our new legitimise claim option)
-                                 int itemIndex2 = 0;
-                                 object lastItem2 = null;
-                                 while (enumerator2.MoveNext())
-                                 {
-                                     if (itemIndex2 == currentSize2) // The new item we just added
-                                     {
-                                         lastItem2 = enumerator2.Current;
-                                         break;
-                                     }
-                                     itemIndex2++;
-                                 }
-
-                                 // If we found the item, set it up
-                                 if (lastItem2 != null)
-                                 {
-                                     var setListItemMethod2 = lastItem2.GetType().GetMethod("SetListItem",
-                                         System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-                                     if (setListItemMethod2 != null)
-                                     {
-                                         // Check if this is a PolicyListItemController
-                                         if (lastItem2.GetType().Name == "PolicyListItemController")
-                                         {
-                                             try
-                                             {
-                                                 setListItemMethod2.Invoke(lastItem2, new object[] { __instance, legitimiseClaimOption as TIPolicyOption, currentNation });
-                                                 CreepingBordersCls.mod.Logger.Log("[LegitimiseClaim] ✓ Legitimise claim option added successfully");
-                                             }
-                                             catch (Exception ex)
-                                             {
-                                                 CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR invoking SetListItem: {ex.Message}");
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-                             catch (Exception ex)
-                             {
-                                 CreepingBordersCls.mod.Logger.Error($"[LegitimiseClaim] ERROR adding legitimise claim option: {ex.Message}");
-                             }
-                         }
-                         catch (Exception ex)
-                         {
-                             CreepingBordersCls.mod.Logger.Error($"[RegionSelector] CRITICAL ERROR in PopulatePolicyOptions postfix: {ex.Message}");
-                         }
-                     }
-                 }
+                var legitimise = new LegitimiseClaimOption();
+                if (legitimise.Allowed(__instance))
+                    __result.Add(legitimise);
+            }
+            catch (Exception ex)
+            {
+                CreepingBordersCls.mod.Logger.Error($"[PolicyRegistration] ERROR appending options: {ex.Message}");
+            }
+        }
+    }
 
     /// <summary>
     /// Region selector policy option that sets the nation's capital to the selected region
@@ -3093,7 +2859,4 @@ namespace CreepingBorders
                 }
             }
 
-        }
-
-
-
+    }
