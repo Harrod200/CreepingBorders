@@ -388,8 +388,100 @@ namespace CreepingBorders
         }
 
         // ======================================================================
+        // C7: CULTURE-WEIGHTED DEFECTION
+        // ======================================================================
+
+        /// <summary>
+        /// Multiplier applied to a region's secession roll based on its
+        /// foreign culture share (C7). A region at 100% state culture has a
+        /// factor of 0.05 (rarely defects); a fully foreign region keeps the
+        /// full vanilla chance (factor 1.0). The 0.05 floor keeps edge cases
+        /// (e.g. unrest spikes) from making defection literally impossible.
+        /// </summary>
+        public static float SecessionCultureFactor(TIRegionState region)
+        {
+            if (region == null || !Enabled) return 1f;
+            return Mathf.Clamp01(ForeignShare(region)) * 0.95f + 0.05f;
+        }
+
+        /// <summary>
+        /// Culture-weighted replacement for DailySecessionCheck (C7).
+        /// Mirrors the vanilla logic exactly, but scales both the initial
+        /// capital-region roll and the follower-region rolls by each region's
+        /// SecessionCultureFactor. When the mod is disabled the vanilla
+        /// method runs untouched (prefix returns false only when active).
+        /// </summary>
+        private static void CultureWeightedSecessionCheck(TINationState seceder)
+        {
+            if (seceder.alienNation || (seceder.capital == null && !seceder.alienNation)) return;
+
+            TINationState parentNation = seceder.capital.nation;
+            if (parentNation.cohesion > TINationState.maxCohesionForSecession
+                || parentNation.unrest < TINationState.minUnrestForSecession
+                || parentNation.capital == seceder.capital)
+                return;
+
+            float vanillaChance = seceder.SecessionChance(0.5f, true);
+            float cultureFactor = SecessionCultureFactor(seceder.capital);
+            float weightedChance = vanillaChance * cultureFactor;
+
+            // Verification log (C7 acceptance): dump weighted vs vanilla
+            // chances whenever a candidate clears the cohesion/unrest gate.
+            try
+            {
+                CreepingBordersCls.mod?.Logger.Log(
+                    $"[CulturalInertia] Secession candidate {seceder.displayName}: " +
+                    $"vanilla={vanillaChance:F6} weighted={weightedChance:F6} " +
+                    $"foreignShare={ForeignShare(seceder.capital):F2} factor={cultureFactor:F2}");
+            }
+            catch (Exception) { /* logging must never break the check */ }
+
+            if (TIUtilities.RandomFloatValue() >= weightedChance) return;
+
+            var secessionRegions = new List<TIRegionState> { seceder.capital };
+            foreach (var region in parentNation.regions)
+            {
+                if (region == parentNation.capital || region == seceder.capital) continue;
+                if (!seceder.claims.Contains(region)) continue;
+                if (seceder.ClaimWillBeHostile(region)) continue;
+                if (region.armies.Count != 0) continue;
+
+                float followerRoll = TIUtilities.RandomFloatValue() * 100f;
+                float followerThreshold = 3f * (parentNation.unrest * 2f
+                                                - parentNation.cohesion
+                                                - parentNation.democracy);
+                followerThreshold *= SecessionCultureFactor(region);
+                if (followerRoll < followerThreshold)
+                    secessionRegions.Add(region);
+            }
+
+            parentNation.Secession(parentNation.HighestUnrestContributor(), seceder, secessionRegions, null);
+        }
+
+        // ======================================================================
         // HARMONY PATCHES
         // ======================================================================
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.DailySecessionCheck))]
+        public static class Patch_DailySecessionCheck
+        {
+            // Prefix takes over the method entirely when the mod is active;
+            // returning false skips the vanilla body. On any error we fall
+            // back to vanilla by returning true.
+            static bool Prefix(TINationState __instance)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return true;
+                try
+                {
+                    CultureWeightedSecessionCheck(__instance);
+                }
+                catch (Exception)
+                {
+                    return true; // never break the daily tick
+                }
+                return false;
+            }
+        }
 
         [HarmonyPatch(typeof(TINationState), nameof(TINationState.OnUnityPriorityComplete))]
         public static class Patch_OnUnityPriorityComplete
