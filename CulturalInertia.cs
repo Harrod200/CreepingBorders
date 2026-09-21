@@ -22,9 +22,9 @@ namespace CreepingBorders
     //   * Unity completions        — each completed Unity priority nudges every
     //                                owned region's composition toward the
     //                                nation's state culture.
-    //   * Absorptions recognised   — a nation absorbed into another contributes
-    //                                its culture composition to the victor's
-    //                                regions at the recognised rate.
+    //   * Absorptions              — no direct culture effect; absorbed regions
+    //                                change only via Unity assimilation and
+    //                                the cultural outreach policy.
     //
     // Culture identity is derived from nations (cultureId == starting nation
     // id). Composition is stored per-region as a dictionary of cultureId ->
@@ -249,45 +249,6 @@ namespace CreepingBorders
         /// Called when a nation absorbs another. The absorbed nation's culture
         /// composition contributes to the victor's regions at the recognised
         /// rate: previously-absorbed cultures are not erased, they blend in.
-        /// </summary>
-        public static void OnAbsorption(TINationState victor, TINationState absorbed)
-        {
-            if (!Enabled || victor == null || absorbed == null) return;
-            try
-            {
-                string victorCulture = CultureOfNation(victor);
-                string absorbedCulture = CultureOfNation(absorbed);
-                if (string.IsNullOrEmpty(victorCulture) || string.IsNullOrEmpty(absorbedCulture))
-                    return;
-
-                float recognition = Mathf.Clamp01(AbsorptionRecognitionRate);
-
-                // For each region the victor gains, blend the absorbed nation's
-                // composition into it at the recognition rate.
-                foreach (var region in absorbed.regions.ToList())
-                {
-                    if (region == null) continue;
-                    // Seed the region with the absorbed culture weighted by the
-                    // recognition rate, remainder to the victor's culture.
-                    var comp = Composition(region);
-                    comp.TryGetValue(absorbedCulture, out var absorbedShare);
-                    float transferred = absorbedShare * recognition;
-                    comp[absorbedCulture] = absorbedShare - transferred;
-                    if (comp[absorbedCulture] <= 0.0005f) comp.Remove(absorbedCulture);
-                    comp.TryGetValue(victorCulture, out var victorShare);
-                    comp[victorCulture] = Mathf.Clamp01(victorShare + transferred);
-                    compositions[region.ID.ToString()] = comp;
-                }
-
-                CreepingBordersCls.mod?.Logger.Log(
-                    $"[CulturalInertia] {victor.displayName} absorbed {absorbed.displayName}: culture blended at recognition rate {recognition:F2}.");
-            }
-            catch (Exception ex)
-            {
-                CreepingBordersCls.mod?.Logger.Error($"[CulturalInertia] OnAbsorption error: {ex.Message}");
-            }
-        }
-
         // ======================================================================
         // COHESION INTEGRATION
         // ======================================================================
@@ -555,16 +516,6 @@ namespace CreepingBorders
             }
         }
 
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.AbsorbNation))]
-        public static class Patch_AbsorbNation
-        {
-            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState joiningNationState)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                CulturalInertia.OnAbsorption(__instance, joiningNationState);
-            }
-        }
-
         [HarmonyPatch(typeof(TINationState), "cohesionRestState", MethodType.Getter)]
         public static class Patch_CohesionRestState_Getter
         {
@@ -605,6 +556,88 @@ namespace CreepingBorders
         }
     }
 }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
+        public static class Patch_SecessionChance
+        {
+            // C9: postfix multiplies the final vanilla chance by the
+            // configured frequency multiplier (default 3x). Applies to both
+            // organic and non-organic rolls. Gated on the mod being active;
+            // on any error the vanilla chance is left untouched.
+            static void Postfix(TINationState __instance, ref float __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    float mult = SecessionFrequencyMultiplier;
+                    if (mult != 1f) __result *= mult;
+                }
+                catch (Exception) { /* never break the roll */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.Secession))]
+        public static class Patch_Secession
+        {
+            // C8: postfix rewrites the culture composition of each transferred
+            // region to a ~50/50 split between parent and local culture.
+            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState newNation, List<TIRegionState> transferringRegions, TINationState liberator)
+            {
+                try
+                {
+                    // C8 applies to secession spawns only, not liberations.
+                    if (liberator != null) return;
+                    BreakawaySpawnBalance(newNation, transferringRegions, __instance);
+                }
+                catch (Exception) { /* never break secession */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.ClaimWillBeHostile))]
+        public static class Patch_ClaimWillBeHostile
+        {
+            // C10: a claim on a region where the claiming nation's state culture
+            // makes up at least FriendlyClaimThreshold of the population is
+            // treated as non-hostile, regardless of vanilla hostility reasons.
+            // Gated: only regions already in the nation's claims list are
+            // overridden, so acquiring *new* claims keeps vanilla rules.
+            // Falls through to vanilla on any error.
+            static bool Prefix(TINationState __instance, TIRegionState region, bool ignoreCurrentNation, ref bool __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return true;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return true;
+                    if (!__instance.claims.Contains(region)) return true;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                    {
+                        __result = false;
+                        return false; // skip vanilla: claim is friendly
+                    }
+                }
+                catch (Exception) { return true; }
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.WillBeHostileExplanation))]
+        public static class Patch_WillBeHostileExplanation
+        {
+            // C10: keep the tooltip consistent with the patched hostility —
+            // if the C10 rule makes the claim friendly, clear the vanilla
+            // hostility reasons (they would otherwise still be listed).
+            static void Postfix(TINationState __instance, TIRegionState region, ref string __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return;
+                    if (!__instance.claims.Contains(region)) return;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                        __result = "";
+                }
+                catch (Exception) { /* leave tooltip as-is */ }
+            }
 
         [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
         public static class Patch_SecessionChance

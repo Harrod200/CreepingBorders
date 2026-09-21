@@ -189,9 +189,6 @@ namespace CreepingBorders
                 settings.UnityAssimilationPerCompletion = GUILayout.HorizontalSlider(settings.UnityAssimilationPerCompletion, 0f, 0.02f, emptyOptions);
 
                 GUILayout.Space(4f);
-                GUILayout.Label("Absorption Recognition Rate: " + (settings.AbsorptionRecognitionRate * 100f).ToString("F0") + "%", emptyOptions);
-                settings.AbsorptionRecognitionRate = GUILayout.HorizontalSlider(settings.AbsorptionRecognitionRate, 0f, 1f, emptyOptions);
-
                 GUILayout.Space(4f);
                 GUILayout.Label("Secession Frequency Multiplier: " + settings.SecessionFrequencyMultiplier.ToString("F1") + "x", emptyOptions);
                 settings.SecessionFrequencyMultiplier = GUILayout.HorizontalSlider(settings.SecessionFrequencyMultiplier, 0f, 10f, emptyOptions);
