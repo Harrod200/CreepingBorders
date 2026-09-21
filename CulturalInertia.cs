@@ -51,7 +51,6 @@ namespace CreepingBorders
         public static bool Enabled => CreepingBordersCls.Settings.EnableCulturalInertia;
         public static float CulturalMismatchMax => CreepingBordersCls.Settings.CulturalMismatchMax;
         public static float UnityAssimilationPerCompletion => CreepingBordersCls.Settings.UnityAssimilationPerCompletion;
-        public static float AbsorptionRecognitionRate => CreepingBordersCls.Settings.AbsorptionRecognitionRate;
 
         /// <summary>
         /// C9: global multiplier applied to every SecessionChance roll.
@@ -554,170 +553,89 @@ namespace CreepingBorders
                 CulturalInertia.LoadState(filepath);
             }
         }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
+        public static class Patch_SecessionChance
+        {
+            // C9: postfix multiplies the final vanilla chance by the
+            // configured frequency multiplier (default 3x). Applies to both
+            // organic and non-organic rolls. Gated on the mod being active;
+            // on any error the vanilla chance is left untouched.
+            static void Postfix(TINationState __instance, ref float __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    float mult = SecessionFrequencyMultiplier;
+                    if (mult != 1f) __result *= mult;
+                }
+                catch (Exception) { /* never break the roll */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.Secession))]
+        public static class Patch_Secession
+        {
+            // C8: postfix rewrites the culture composition of each transferred
+            // region to a ~50/50 split between parent and local culture.
+            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState newNation, List<TIRegionState> transferringRegions, TINationState liberator)
+            {
+                try
+                {
+                    // C8 applies to secession spawns only, not liberations.
+                    if (liberator != null) return;
+                    BreakawaySpawnBalance(newNation, transferringRegions, __instance);
+                }
+                catch (Exception) { /* never break secession */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.ClaimWillBeHostile))]
+        public static class Patch_ClaimWillBeHostile
+        {
+            // C10: a claim on a region where the claiming nation's state culture
+            // makes up at least FriendlyClaimThreshold of the population is
+            // treated as non-hostile, regardless of vanilla hostility reasons.
+            // Gated: only regions already in the nation's claims list are
+            // overridden, so acquiring *new* claims keeps vanilla rules.
+            // Falls through to vanilla on any error.
+            static bool Prefix(TINationState __instance, TIRegionState region, bool ignoreCurrentNation, ref bool __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return true;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return true;
+                    if (!__instance.claims.Contains(region)) return true;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                    {
+                        __result = false;
+                        return false; // skip vanilla: claim is friendly
+                    }
+                }
+                catch (Exception) { return true; }
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.WillBeHostileExplanation))]
+        public static class Patch_WillBeHostileExplanation
+        {
+            // C10: keep the tooltip consistent with the patched hostility —
+            // if the C10 rule makes the claim friendly, clear the vanilla
+            // hostility reasons (they would otherwise still be listed).
+            static void Postfix(TINationState __instance, TIRegionState region, ref string __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return;
+                    if (!__instance.claims.Contains(region)) return;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                        __result = "";
+                }
+                catch (Exception) { /* leave tooltip as-is */ }
+            }
+        }
+
     }
 }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
-        public static class Patch_SecessionChance
-        {
-            // C9: postfix multiplies the final vanilla chance by the
-            // configured frequency multiplier (default 3x). Applies to both
-            // organic and non-organic rolls. Gated on the mod being active;
-            // on any error the vanilla chance is left untouched.
-            static void Postfix(TINationState __instance, ref float __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                try
-                {
-                    float mult = SecessionFrequencyMultiplier;
-                    if (mult != 1f) __result *= mult;
-                }
-                catch (Exception) { /* never break the roll */ }
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.Secession))]
-        public static class Patch_Secession
-        {
-            // C8: postfix rewrites the culture composition of each transferred
-            // region to a ~50/50 split between parent and local culture.
-            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState newNation, List<TIRegionState> transferringRegions, TINationState liberator)
-            {
-                try
-                {
-                    // C8 applies to secession spawns only, not liberations.
-                    if (liberator != null) return;
-                    BreakawaySpawnBalance(newNation, transferringRegions, __instance);
-                }
-                catch (Exception) { /* never break secession */ }
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.ClaimWillBeHostile))]
-        public static class Patch_ClaimWillBeHostile
-        {
-            // C10: a claim on a region where the claiming nation's state culture
-            // makes up at least FriendlyClaimThreshold of the population is
-            // treated as non-hostile, regardless of vanilla hostility reasons.
-            // Gated: only regions already in the nation's claims list are
-            // overridden, so acquiring *new* claims keeps vanilla rules.
-            // Falls through to vanilla on any error.
-            static bool Prefix(TINationState __instance, TIRegionState region, bool ignoreCurrentNation, ref bool __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return true;
-                try
-                {
-                    if (__instance == null || region == null || __instance.alienNation) return true;
-                    if (!__instance.claims.Contains(region)) return true;
-                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
-                    {
-                        __result = false;
-                        return false; // skip vanilla: claim is friendly
-                    }
-                }
-                catch (Exception) { return true; }
-                return true;
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.WillBeHostileExplanation))]
-        public static class Patch_WillBeHostileExplanation
-        {
-            // C10: keep the tooltip consistent with the patched hostility —
-            // if the C10 rule makes the claim friendly, clear the vanilla
-            // hostility reasons (they would otherwise still be listed).
-            static void Postfix(TINationState __instance, TIRegionState region, ref string __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                try
-                {
-                    if (__instance == null || region == null || __instance.alienNation) return;
-                    if (!__instance.claims.Contains(region)) return;
-                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
-                        __result = "";
-                }
-                catch (Exception) { /* leave tooltip as-is */ }
-            }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.SecessionChance))]
-        public static class Patch_SecessionChance
-        {
-            // C9: postfix multiplies the final vanilla chance by the
-            // configured frequency multiplier (default 3x). Applies to both
-            // organic and non-organic rolls. Gated on the mod being active;
-            // on any error the vanilla chance is left untouched.
-            static void Postfix(TINationState __instance, ref float __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                try
-                {
-                    float mult = SecessionFrequencyMultiplier;
-                    if (mult != 1f) __result *= mult;
-                }
-                catch (Exception) { /* never break the roll */ }
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.Secession))]
-        public static class Patch_Secession
-        {
-            // C8: postfix rewrites the culture composition of each transferred
-            // region to a ~50/50 split between parent and local culture.
-            static void Postfix(TINationState __instance, TIFactionState actingFaction, TINationState newNation, List<TIRegionState> transferringRegions, TINationState liberator)
-            {
-                try
-                {
-                    // C8 applies to secession spawns only, not liberations.
-                    if (liberator != null) return;
-                    BreakawaySpawnBalance(newNation, transferringRegions, __instance);
-                }
-                catch (Exception) { /* never break secession */ }
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.ClaimWillBeHostile))]
-        public static class Patch_ClaimWillBeHostile
-        {
-            // C10: a claim on a region where the claiming nation's state culture
-            // makes up at least FriendlyClaimThreshold of the population is
-            // treated as non-hostile, regardless of vanilla hostility reasons.
-            // Gated: only regions already in the nation's claims list are
-            // overridden, so acquiring *new* claims keeps vanilla rules.
-            // Falls through to vanilla on any error.
-            static bool Prefix(TINationState __instance, TIRegionState region, bool ignoreCurrentNation, ref bool __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return true;
-                try
-                {
-                    if (__instance == null || region == null || __instance.alienNation) return true;
-                    if (!__instance.claims.Contains(region)) return true;
-                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
-                    {
-                        __result = false;
-                        return false; // skip vanilla: claim is friendly
-                    }
-                }
-                catch (Exception) { return true; }
-                return true;
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.WillBeHostileExplanation))]
-        public static class Patch_WillBeHostileExplanation
-        {
-            // C10: keep the tooltip consistent with the patched hostility —
-            // if the C10 rule makes the claim friendly, clear the vanilla
-            // hostility reasons (they would otherwise still be listed).
-            static void Postfix(TINationState __instance, TIRegionState region, ref string __result)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                try
-                {
-                    if (__instance == null || region == null || __instance.alienNation) return;
-                    if (!__instance.claims.Contains(region)) return;
-                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
-                        __result = "";
-                }
-                catch (Exception) { /* leave tooltip as-is */ }
-            }
-        }

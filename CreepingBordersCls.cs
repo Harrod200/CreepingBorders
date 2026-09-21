@@ -37,7 +37,6 @@ namespace CreepingBorders
         public bool EnableCulturalInertia = true;
         public float CulturalMismatchMax = 2.0f;
         public float UnityAssimilationPerCompletion = 0.005f;
-        public float AbsorptionRecognitionRate = 0.5f;
         public float SecessionFrequencyMultiplier = 3.0f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
