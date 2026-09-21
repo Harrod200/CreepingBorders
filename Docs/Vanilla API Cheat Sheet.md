@@ -60,3 +60,38 @@ FrameworkPathOverride. HintPaths must point at ref-dlls/, not Steam.
   "distance is never continental-to-continental" ruling — don't reintroduce it.
 - Ally traversal degradation is per **distinct allied nation crossed**
   (path-state `AlliedNationsCrossed` in the BFS frontier), not per region.
+
+## Session 6 additions (2026-09-21 evening) — Unity, claims, secession patches
+
+- Unity completion hook (C2): pay assimilation per **completion**, verified
+  via decompile — hook the completion event path, not per-turn. Flat 0.5%/completion
+  (setting slider, renamed from absorption wording).
+- Absorption mechanic removal (C3-culture): vanilla has **no direct
+  culture-blending on absorption**; the `AbsorptionRecognitionRate` setting and
+  its culture effect were removed entirely (commit f3dff60). Only stale remnant
+  was a UI label string — fixed in 83213a0. Don't re-derive this; it is settled.
+- Duplicate patch-class hazard: a misplaced append can put patch classes after
+  the namespace/class closing braces and even duplicate them (both happened in
+  f3dff60; fixed in 1aa7e1e). After any append to a large file, run
+  `grep -c "class Patch_"` and verify brace balance before building.
+- Culture-weighted secession (C7): patch point is `DailySecessionCheck`
+  (replacement, not prefix/postfix), verified against decompile; weight chance
+  by foreign culture share.
+- Breakaway 50/50 (C8): rewrite spawn composition at formation event; C9
+  secession frequency is a postfix multiplier on the secession chance
+  (`SecessionChance`, default 3x, slider).
+- Friendly-claim threshold (C10): claims by nations with >=30% shared culture
+  are non-hostile — prefix on `ClaimWillBeHostile` + postfix on
+  `WillBeHostileExplanation` (tooltip text).
+- Breakaway malus relief (C6/D47): halve cultural mismatch malus while
+  `nation.breakaway` is set.
+- Outreach (C11) research so far (incomplete, session ended before writing code):
+  policy registration mirrors existing options in `CreepingBordersCls.cs`;
+  Loc keys are `CreepingBorders.<ClassName>.*`;
+  `TIPolicyOptionWithConfirm` is the **AI-approval** confirm, not player-target
+  confirm — for C11's "confirm payment" prompt check vanilla
+  `RequiresTargetConfirm` handling instead. Influence payment mirrors existing
+  targeted policies; per-completion pay on the C2 hook. Claimability/targeting
+  predicate: reuse the mod's contiguity/adjacency helpers
+  (`TIRegionState.AdjacentRegions`, connectivity manager levels, not island-bridge
+  FC). No C11 code was written yet.
