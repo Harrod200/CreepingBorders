@@ -1,0 +1,5 @@
+bin/
+obj/
+*.user
+dotnet-install.sh
+PREFLIGHT.sh
