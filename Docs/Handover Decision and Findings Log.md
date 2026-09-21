@@ -120,3 +120,40 @@ Implementation note: gate this in the manager's inheritance/BFS logic
 (`isIsland` check), NOT by editing the distance layer or cache — the cache
 remains a pure geometric distance table and stays reusable for other systems.
 Added to Handover Notes v3 implementation plan as a bullet amendment.
+
+## 2026-09-21 PM — Contiguity locked (no further code changes this session)
+
+Decisions in order, each superseding the last on its point:
+1. Continental regions do NOT inherit PC from islands. Islands inherit PC from
+   a DC island or continental region within 2X. No region inherits PC from a PC
+   region (distance passes project from Full sources only).
+2. Refined: continental regions DO inherit FC from an FC island within X
+   (FC only, never PC — cross-landmass). PC-to-PC passes only via vanilla
+   land adjacency.
+3. Distance logic is island-gated: if neither endpoint is an island, distance
+   is never considered. Continental-to-continental linkage is Pass A adjacency
+   only. `IsSameLandmass` and the landmassId map removed as dead code.
+4. Allied BFS: allies are traversable but degrade the level once per distinct
+   allied NATION crossed (Full→Partial→Disconnected), not per region. Foreign
+   regions block; unowned do not block.
+5. Island-internal propagation: on a multi-region island, the region closest
+   to a Full source connects via distance logic; remaining island regions
+   connect to it via normal BFS adjacency.
+6. Clarification: a continental region with BFS-sourced PC can never upgrade
+   to FC via an island bridge. Island-bridge FC applies only to regions that
+   are otherwise disconnected (DC from Pass A).
+7. Claim creep: only friendly claims propagate (seed from `nonHostileClaims`
+   when the sub-option is enabled, default on; disabled = legacy seed from any
+   owned region). Canonical example recorded in Handover Notes v5:
+   A1→B3 hostile claim → legitimised → capture → creep B2 → capture → B2
+   stays hostile in `hostileClaims` → creep to B1 blocked until legitimation.
+8. Scenario ruling: two continental regions 500 km apart with an allied
+   unaligned between them are Partial (one allied nation crossed), not Full —
+   and under rule 3 the distance pass never applies anyway.
+
+## Infra (session 5 close-out)
+- Git history lost once to /scratch recycle; recovered by re-initing from the
+  published v5 package and rebasing onto origin/master.
+- Repo now lives at /rool-drive/CB/repo (durable), symlinked at ~/handover.
+  Durable second copy: github.com/Harrod200/CreepingBorders, master.
+  Rule 6 of the efficiency instructions mandates /rool-drive/CB for all work.

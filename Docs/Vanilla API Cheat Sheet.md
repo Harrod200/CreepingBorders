@@ -41,3 +41,22 @@ bash PREFLIGHT.sh
 ```
 Details in Build Setup.md. Old-style net48 csproj + modern SDK +
 FrameworkPathOverride. HintPaths must point at ref-dlls/, not Steam.
+
+## Session 5 additions (2026-09-21 PM) — contiguity locking + infra
+
+- `TINationState.claims` / `hostileClaims` / `nonHostileClaims` are
+  `List<TIRegionState>` on the nation. Any region gained without a
+  pre-existing friendly claim is hostile by default in vanilla (conquest,
+  unification, grants, breakaways all covered by one `nonHostileClaims`
+  membership check).
+- `PeacefulBreakupOption.OnPassage` splits into `ReleaseBreakaway(amicable:true)`
+  (clears `breakawayParent`) and `ReleaseNation` (never sets it); `breakaway`
+  is derived (`breakawayParent != null`), so any relief must be a timestamp
+  (`culturalReliefUntil`) stamped at both paths, not a flag.
+- Distance-layer cache stays a pure geometric table (`A,B,distance`, 3 cols,
+  parser rejects extra). Island/continental gating belongs in the manager,
+  never in the cache.
+- `IsSameLandmass` was removed from the manager after the
+  "distance is never continental-to-continental" ruling — don't reintroduce it.
+- Ally traversal degradation is per **distinct allied nation crossed**
+  (path-state `AlliedNationsCrossed` in the BFS frontier), not per region.
