@@ -81,3 +81,23 @@ distance bake. To be attached to the final handover.
 - Reverted earlier too-aggressive cleanup; synced repo to the /rool-drive working state.
 - Committed: local-build csproj (stubs + drive ref paths, net48 ref assemblies condition), C1 debug hook in Cls, GeoMath overlap-norm fix, TestDistanceLayer, plus BUILD NOTES / E2E Verification / plan & refactor docs.
 - Deliberately NOT committed (binaries/created builds, not redistributable source): CompiledMod/, CreepingBorders-master-upstream/, CreepingBorders.dll, nuget-packages-local/.
+
+## 2026-09-21 (cont.) — Transpolar route verification: Canada ↔ Russia
+
+**Question:** what does the map look like for a transpolar crossing between Canada and Russia?
+
+**Findings (all from BorderDistanceCache.csv + PolygonCache.csv, v2v recheck where noted):**
+
+- **Dataset has no Svalbard/Jan Mayen; no Franz Josef Land.** Highest latitude of any region is Greenland 83.6°N. The high Arctic is empty above ~83°N — any "over the pole" route is pure ocean by definition of this map.
+- **Genuinely transpolar pair: CanadianArctic ↔ Norilsk = 1,724 km.** Closest points: Canadian Arctic (83.19°N, 74.93°W — Ellesmere/Alert area) and Norilsk region (81.26°N, 95.63°E — Taymyr/Severnaya Zemlya area). Great-circle midpoint (88.8°N, 66.5°E) — this is a real over-the-north-pole route, ~500 km from the pole.
+- **Closest Canada↔Russia gap overall = CanadianArctic ↔ Sakha at 2,166 km** (77.3°N −119.1°W ↔ 75.1°N 150.8°E, via 80.1°N −168.6°E — near Wrangel Island, not polar).
+- **Alaska ↔ Russia (Kamchatka) = 83.85 km** at Bering Strait — this is the only narrow intercontinental gap on the whole map; everything Arctic is 1,700+ km of ocean.
+- **Norway ↔ Norilsk = 1,148 km** (80.1°N 27.2°E ↔ 81.0°N 93.3°E) — the map's Norway polygon reaches Svalbard latitudes (80°N, 27°E) despite no Svalbard region existing; worth checking whether Norway's polygon is meant to include Svalbard (real-world Svalbard is 76–81°N, 10–35°E, so this fits) — flagged for the map author.
+- Greenland–CanadianArctic 28.7 km and Greenland–Norway 443.9 km are consistent with real-world Nares Strait (~35 km) and Greenland–Svalbard (~400–450 km); Greenland's polygon also stops at 83.6°N like the real island.
+
+**Gameplay implications:**
+1. Canada↔Russia conventional invasion routes: either 2,100+ km of open Arctic (CanadianArctic↔Sakha) or the Bering Strait (Alaska↔Kamchatka, 84 km). The "creeping borders" mechanic over 1,724 km of Arctic ocean between CanadianArctic and Norilsk will behave like pure naval/ice movement, not border creep — recommend a dedicated look at how ocean distance interacts with the border-distance cache.
+2. The CanadianArctic–Norilsk transpolar gap is the shortest Arctic Russia↔Canada link; any " Arctic route" gameplay will funnel through it.
+3. No-polygon gaps: Svalbard (covered by Norway's polygon or missing entirely) and Franz Josef Land (missing) mean historical Arctic claims in those areas are unrepresentable; flag for map author.
+
+**Status:** logged for later investigation. No cache changes made.
