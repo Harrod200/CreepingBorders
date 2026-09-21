@@ -60,6 +60,12 @@ namespace CreepingBorders
         public static float SecessionFrequencyMultiplier =>
             CreepingBordersCls.Settings.SecessionFrequencyMultiplier;
 
+        /// <summary>
+        /// C10: minimum share of the claiming nation's state culture present in
+        /// a region for the claim to be treated as non-hostile.
+        /// </summary>
+        public const float FriendlyClaimThreshold = 0.30f;
+
         // ======================================================================
         // CULTURE IDENTITIES
         // ======================================================================
@@ -147,6 +153,22 @@ namespace CreepingBorders
 
             float weight = Mathf.Clamp01(region.populationInMillions / nationPop);
             return foreign * Mathf.Clamp01(weight * region.nation.regions.Count); // proportional share, capped at 1
+        }
+
+        /// <summary>
+        /// C10 helper: share of the nation's state culture present in a region
+        /// (0..1). Returns 0 when either side is missing or the state culture
+        /// is unknown.
+        /// </summary>
+        public static float FriendlyCultureShare(TINationState nation, TIRegionState region)
+        {
+            if (nation == null || region == null) return 0f;
+            string stateCulture = CultureOfNation(nation);
+            if (string.IsNullOrEmpty(stateCulture)) return 0f;
+            var comp = Composition(region);
+            float share = 0f;
+            comp.TryGetValue(stateCulture, out share);
+            return share;
         }
 
         /// <summary>
@@ -621,5 +643,52 @@ namespace CreepingBorders
                     BreakawaySpawnBalance(newNation, transferringRegions, __instance);
                 }
                 catch (Exception) { /* never break secession */ }
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.ClaimWillBeHostile))]
+        public static class Patch_ClaimWillBeHostile
+        {
+            // C10: a claim on a region where the claiming nation's state culture
+            // makes up at least FriendlyClaimThreshold of the population is
+            // treated as non-hostile, regardless of vanilla hostility reasons.
+            // Gated: only regions already in the nation's claims list are
+            // overridden, so acquiring *new* claims keeps vanilla rules.
+            // Falls through to vanilla on any error.
+            static bool Prefix(TINationState __instance, TIRegionState region, bool ignoreCurrentNation, ref bool __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return true;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return true;
+                    if (!__instance.claims.Contains(region)) return true;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                    {
+                        __result = false;
+                        return false; // skip vanilla: claim is friendly
+                    }
+                }
+                catch (Exception) { return true; }
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(TINationState), nameof(TINationState.WillBeHostileExplanation))]
+        public static class Patch_WillBeHostileExplanation
+        {
+            // C10: keep the tooltip consistent with the patched hostility —
+            // if the C10 rule makes the claim friendly, clear the vanilla
+            // hostility reasons (they would otherwise still be listed).
+            static void Postfix(TINationState __instance, TIRegionState region, ref string __result)
+            {
+                if (!CreepingBordersCls.enabled || !Enabled) return;
+                try
+                {
+                    if (__instance == null || region == null || __instance.alienNation) return;
+                    if (!__instance.claims.Contains(region)) return;
+                    if (FriendlyCultureShare(__instance, region) >= FriendlyClaimThreshold)
+                        __result = "";
+                }
+                catch (Exception) { /* leave tooltip as-is */ }
             }
         }
