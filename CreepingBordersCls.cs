@@ -98,6 +98,12 @@ namespace CreepingBorders
             {
                 borderExpansionOnLoadPerformed = true;
                 ApplyBorderExpansionOnLoad();
+
+                // C1 verification: exercise the distance layer's pure logic on load.
+                if (CreepingBordersCls.Settings.EnableDebugLogging)
+                {
+                    TestDistanceLayer.Run(msg => CreepingBordersCls.mod.Logger.Log(msg));
+                }
             }
         }
 

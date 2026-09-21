@@ -211,6 +211,7 @@ namespace CreepingBorders
         private static bool LonRangesOverlap(double aMin, double aMax, double bMin, double bMax)
         {
             // Normalize both ranges to [0, 360).
+            double normLo(double lo, double hi) { return ((lo % 360.0) + 360.0) % 360.0; }
 
             var aRange = NormalizeRange(aMin, aMax);
             var bRange = NormalizeRange(bMin, bMax);
