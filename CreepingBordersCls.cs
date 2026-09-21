@@ -2429,34 +2429,33 @@ namespace CreepingBorders
     // ====================================================================
 
     /// <summary>
-    /// Appends the mod's policy options (Set Capital, Legitimise Claim) to the
-    /// nation's list of settable policy options. The vanilla
-    /// NotificationScreenController.PopulatePolicyOptions iterates this list and
-    /// wires up the UI itself, so no UI code is touched at all. This also fixes
-    /// the "options appear every other popup" class of bug, because the vanilla
-    /// list is never resized or rebuilt from the patch side.
+    /// Registers the mod's policy options (Set Capital, Legitimise Claim) in
+    /// PolicyManager.policies, exactly like vanilla Initialize does. Every UI
+    /// surface (notification popup, nation info panel) reads that dictionary, so
+    /// registering here makes the options appear everywhere with zero UI patches.
+    /// The options get synthetic PolicyType keys so they can never collide with
+    /// vanilla enum values or fall into vanilla switch/filter logic (e.g. the
+    /// CancelOption exclusions in CodexController and NotificationScreenController).
     /// </summary>
-    [HarmonyPatch(typeof(TINationState), "availableSetPolicyOptions")]
-    public static class Patch_AvailableSetPolicyOptions
+    [HarmonyPatch(typeof(PolicyManager), "Initialize")]
+    public static class Patch_RegisterPolicyOptions
     {
-        static void Postfix(TINationState __instance, bool includeCancel, ref List<TIPolicyOption> __result)
+        public static readonly PolicyType SetCapitalType = (PolicyType)1001;
+        public static readonly PolicyType LegitimiseClaimType = (PolicyType)1002;
+
+        static void Postfix()
         {
             try
             {
-                if (__instance == null || __result == null)
-                    return;
-
-                var setCapital = new RegionSelectorPlaceholder();
-                if (setCapital.Allowed(__instance))
-                    __result.Add(setCapital);
-
-                var legitimise = new LegitimiseClaimOption();
-                if (legitimise.Allowed(__instance))
-                    __result.Add(legitimise);
+                // TIPolicyOption's ctor sets dataName = GetType().ToString() and
+                // caches the display name, so the base-class text methods resolve
+                // the existing Loc keys (CreepingBorders.<ClassName>.*) for free.
+                PolicyManager.policies.Add(SetCapitalType, new RegionSelectorPlaceholder());
+                PolicyManager.policies.Add(LegitimiseClaimType, new LegitimiseClaimOption());
             }
             catch (Exception ex)
             {
-                CreepingBordersCls.mod.Logger.Error($"[PolicyRegistration] ERROR appending options: {ex.Message}");
+                CreepingBordersCls.mod.Logger.Error($"[PolicyRegistration] ERROR registering options: {ex.Message}");
             }
         }
     }
@@ -2468,27 +2467,8 @@ namespace CreepingBorders
     {
         public override PolicyType GetPolicyType()
         {
-            return PolicyType.CancelOption; // Use as placeholder type
-        }
-
-        public new string GetDisplayName()
-        {
-            return Loc.T("RegionSelectorPlaceholder.displayName");
-        }
-
-        public new string GetDescription()
-        {
-            return Loc.T("RegionSelectorPlaceholder.description");
-        }
-
-        public new string GetTargetSelectionHeaderText()
-        {
-            return Loc.T("RegionSelectorPlaceholder.targetHeader");
-        }
-
-        public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
-        {
-            return Loc.T("RegionSelectorPlaceholder.confirmText", new object[] { target.displayName });
+            // Synthetic value so vanilla filters/switches on vanilla enum values never touch us
+            return Patch_RegisterPolicyOptions.SetCapitalType;
         }
 
         public override bool Allowed(TINationState nation)
@@ -2595,35 +2575,12 @@ namespace CreepingBorders
     {
         public override PolicyType GetPolicyType()
         {
-            if (CreepingBordersCls.Settings.EnableDebugLogging)
-                 {
-                    CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] GetPolicyType() called - returning CancelOption");
-                }
-                return PolicyType.CancelOption; // Use as placeholder type
-            }
-
-            public new string GetDisplayName()
-            {
-                return Loc.T("LegitimiseClaimOption.displayName");
-            }
-
-            public new string GetDescription()
-            {
-                return Loc.T("LegitimiseClaimOption.description");
-            }
-
-            public new string GetTargetSelectionHeaderText()
-            {
-                return Loc.T("LegitimiseClaimOption.targetHeader");
-            }
-
-            public new string GetConfirmPrompt(TINationState enactingNation, TIGameState target)
-            {
-                return Loc.T("LegitimiseClaimOption.confirmText", new object[] { target.displayName });
-            }
+            // Synthetic value so vanilla filters/switches on vanilla enum values never touch us
+            return Patch_RegisterPolicyOptions.LegitimiseClaimType;
+        }
 
 
-            public override bool Allowed(TINationState nation)
+        public override bool Allowed(TINationState nation)
         {
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
