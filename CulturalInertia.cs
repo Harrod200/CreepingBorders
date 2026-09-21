@@ -50,7 +50,7 @@ namespace CreepingBorders
         // --- config (settings-driven) -----------------------------------------
         public static bool Enabled => CreepingBordersCls.Settings.EnableCulturalInertia;
         public static float CulturalMismatchMax => CreepingBordersCls.Settings.CulturalMismatchMax;
-        public static float UnityAssimilationStrength => CreepingBordersCls.Settings.UnityAssimilationStrength;
+        public static float UnityAssimilationPerCompletion => CreepingBordersCls.Settings.UnityAssimilationPerCompletion;
         public static float AbsorptionRecognitionRate => CreepingBordersCls.Settings.AbsorptionRecognitionRate;
 
         /// <summary>
@@ -221,23 +221,19 @@ namespace CreepingBorders
                 string stateCulture = CultureOfNation(nation);
                 if (string.IsNullOrEmpty(stateCulture)) return;
 
-                // Base strength per completion, scaled by the global unity
-                // public-opinion knob so it stays proportionate to vanilla.
-                float strength = TemplateManager.global.unityPublicOpinionBaseStrength
-                                 * UnityAssimilationStrength;
-
+                // Flat assimilation per completion: a configurable share
+                // (default 0.5%) of the population shifts to the owner's
+                // state culture, taken proportionally from the foreign
+                // cultures present. Public opinion plays no part.
                 foreach (var region in nation.regions)
                 {
                     if (region == null) continue;
-                    // Assimilation is slower where the foreign share is small.
-                    float foreign = ForeignShare(region);
-                    if (foreign <= 0f) continue;
-                    float amount = strength * foreign;
-                    NudgeComposition(region, stateCulture, amount);
+                    if (ForeignShare(region) <= 0f) continue;
+                    NudgeComposition(region, stateCulture, UnityAssimilationPerCompletion);
                 }
 
                 CreepingBordersCls.mod?.Logger.Log(
-                    $"[CulturalInertia] {nation.displayName} completed Unity: assimilation pass applied (strength {strength:F2}).");
+                    $"[CulturalInertia] {nation.displayName} completed Unity: assimilation pass applied (+{UnityAssimilationPerCompletion:P1} per region).");
             }
             catch (Exception ex)
             {

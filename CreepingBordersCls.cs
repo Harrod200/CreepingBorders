@@ -36,7 +36,7 @@ namespace CreepingBorders
         public bool EnableDebugLogging = false;
         public bool EnableCulturalInertia = true;
         public float CulturalMismatchMax = 2.0f;
-        public float UnityAssimilationStrength = 1.0f;
+        public float UnityAssimilationPerCompletion = 0.005f;
         public float AbsorptionRecognitionRate = 0.5f;
         public float SecessionFrequencyMultiplier = 3.0f;
 
@@ -185,8 +185,8 @@ namespace CreepingBorders
                 settings.CulturalMismatchMax = GUILayout.HorizontalSlider(settings.CulturalMismatchMax, 0.5f, 5f, emptyOptions);
 
                 GUILayout.Space(4f);
-                GUILayout.Label("Unity Assimilation Strength: " + settings.UnityAssimilationStrength.ToString("F2"), emptyOptions);
-                settings.UnityAssimilationStrength = GUILayout.HorizontalSlider(settings.UnityAssimilationStrength, 0f, 5f, emptyOptions);
+                GUILayout.Label("Unity Assimilation Per Completion: " + (settings.UnityAssimilationPerCompletion * 100f).ToString("F1") + "%", emptyOptions);
+                settings.UnityAssimilationPerCompletion = GUILayout.HorizontalSlider(settings.UnityAssimilationPerCompletion, 0f, 0.02f, emptyOptions);
 
                 GUILayout.Space(4f);
                 GUILayout.Label("Absorption Recognition Rate: " + (settings.AbsorptionRecognitionRate * 100f).ToString("F0") + "%", emptyOptions);
