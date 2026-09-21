@@ -33,6 +33,10 @@ namespace CreepingBorders
         public float DiscontiguityMalusPercentage = 5.0f;
         public bool EnableInstantAnnexations = false;
         public bool EnableDebugLogging = false;
+        public bool EnableCulturalInertia = true;
+        public float CulturalMismatchMax = 2.0f;
+        public float UnityAssimilationStrength = 1.0f;
+        public float AbsorptionRecognitionRate = 0.5f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -154,6 +158,29 @@ namespace CreepingBorders
                 GUILayout.Space(4f);
                 GUILayout.Label("Discontiguity Malus Percentage: " + settings.DiscontiguityMalusPercentage.ToString("F1") + "%", emptyOptions);
                 settings.DiscontiguityMalusPercentage = GUILayout.HorizontalSlider(settings.DiscontiguityMalusPercentage, 0.5f, 10f, emptyOptions);
+            }
+
+            // ====================================================================
+            // CULTURAL INERTIA
+            // ====================================================================
+            GUILayout.Space(8f);
+            GUILayout.Label("<b>Cultural Inertia</b>", emptyOptions);
+            settings.EnableCulturalInertia = GUILayout.Toggle(settings.EnableCulturalInertia, "Enable Cultural Inertia", emptyOptions);
+            GUILayout.Label("Foreign-culture populations drag cohesion; Unity and recognised absorptions shift culture", emptyOptions);
+
+            if (settings.EnableCulturalInertia)
+            {
+                GUILayout.Space(4f);
+                GUILayout.Label("Cultural Mismatch Max: " + settings.CulturalMismatchMax.ToString("F1"), emptyOptions);
+                settings.CulturalMismatchMax = GUILayout.HorizontalSlider(settings.CulturalMismatchMax, 0.5f, 5f, emptyOptions);
+
+                GUILayout.Space(4f);
+                GUILayout.Label("Unity Assimilation Strength: " + settings.UnityAssimilationStrength.ToString("F2"), emptyOptions);
+                settings.UnityAssimilationStrength = GUILayout.HorizontalSlider(settings.UnityAssimilationStrength, 0f, 5f, emptyOptions);
+
+                GUILayout.Space(4f);
+                GUILayout.Label("Absorption Recognition Rate: " + (settings.AbsorptionRecognitionRate * 100f).ToString("F0") + "%", emptyOptions);
+                settings.AbsorptionRecognitionRate = GUILayout.HorizontalSlider(settings.AbsorptionRecognitionRate, 0f, 1f, emptyOptions);
             }
 
             // ====================================================================
@@ -2141,6 +2168,7 @@ namespace CreepingBorders
 
             // Reset flags so they run again for the new game/save
             CreepingBordersCls.borderExpansionOnLoadPerformed = false;
+            CulturalInertia.ResetInMemoryState();
 
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
