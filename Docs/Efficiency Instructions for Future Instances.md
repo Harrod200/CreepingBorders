@@ -38,7 +38,7 @@ wasted 30-50% of their budget re-deriving known things.
    - $HOME and /tmp are wiped on VM boot; nothing there survives.
    - NEVER use /scratch as a working location. It is wiped on VM recycle
      and cost us the git history (commits 3dec515..c522d5e, session 4).
-     The repo lives in ~/handover (HOME), and its durable copy is on
+     The repo lives in /rool-drive/CB/repo (~/handover is a symlink to it) (HOME), and its durable copy is on
      GitHub: https://github.com/Harrod200/CreepingBorders. Clone or push
      there; do not park state on /scratch.
    - /rool-drive persists across boots. Keep handover zips there.
