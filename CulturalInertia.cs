@@ -271,6 +271,10 @@ namespace CreepingBorders
         /// The cohesion rest-state malus a nation suffers from cultural
         /// mismatch across its regions:
         ///   sum over regions of (foreignShare * popWeight) * culturalMismatchMax
+        ///
+        /// Breakaway relief (C6): while the nation is flagged as a breakaway
+        /// (nation.breakaway == true), the mismatch malus is halved. Vanilla
+        /// never clears breakawayParent, so the relief is effectively permanent.
         /// </summary>
         public static float CohesionMalus(TINationState nation)
         {
@@ -281,6 +285,7 @@ namespace CreepingBorders
                 if (region == null) continue;
                 total += PopWeightedForeignShare(region);
             }
+            if (nation.breakaway) total *= 0.5f;
             return total * CulturalMismatchMax;
         }
 
