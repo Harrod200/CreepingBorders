@@ -70,9 +70,10 @@ The ×0.3 (beneficial) / ×1.3 (detrimental) foreign-populace weighting applies 
 4. **Separatist-movement cohesion impact** (`cohesionImpactMultiplierIfSeparatistMovement` weighting in claim/cohesion tick) — foreign ×1.3.
 5. **Climate damage** (`MonthlyTemperatureEconomicImpact`, ~4350) — environment-damage weighting by `populationInMillions`; foreign ×1.3.
 6. **GHG emissions** — `PoptoGHG` (11373: 2.41) converts population to emissions; foreign ×1.3.
-7. **Nuke/casualty losses** (TIRegionState ~1264) — `populationInMillions × strength` deaths; foreign ×1.3 (foreign populace takes disproportionate casualties — reflecting societal separation from state protection).
-8. **Occupation dilution cost** (this mod's own rule, same multiplier set) and **`investmentPoints_occupationPenalty_frac`** (~2392) — penalises IP by occupied GDP proportion, itself pop-driven; foreign ×1.3.
-9. **Breakaway/secession pressure term in the minority-rule malus** (this plan) — foreign ×1.3.
+7. **Occupation dilution cost** (this mod's own rule, same multiplier set) and **`investmentPoints_occupationPenalty_frac`** (~2392) — penalises IP by occupied GDP proportion, itself pop-driven; foreign ×1.3.
+8. **Breakaway/secession pressure term in the minority-rule malus** (this plan) — foreign ×1.3.
+
+**Explicitly out of scope:** nuke/casualty losses (TIRegionState ~1264) — left unweighted; casualties fall uniformly regardless of cultural composition.
 
 **Excluded (structural bookkeeping, unweighted):** perCapitaGDP as a ratio (it divides by total pop — re-weighting the denominator would silently inflate GDP for mixed nations; the ×0.3 already enters through the GDP numerator), population *proportions* in `Independence()`/secession splits (~9556, ~10244), `PeriodicOrganicCoupChance()` (no pop term), unrest rest state (no direct pop term; army-based unrest relief is per-army, not per-pop), and `RandomRegionWeightedByPopulation` targeting (a selector, not an effect).
 
