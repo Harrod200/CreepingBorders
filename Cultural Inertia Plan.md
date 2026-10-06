@@ -47,10 +47,17 @@ Supersedes rev 8's flat assimilation rule ("+0.5% owner culture per Unity comple
 - Cost formula: `cost = Σ(affected unowned/foreign pop) / 100M` — **1 influence per 100M affected population, no cap** (the earlier 2-cap is removed).
 - **Who pays — control-point split:** the cost is charged to the **controlling factions of the completing nation's control points**, split **proportionally** by point ownership: faction A holding 3 of 4 points pays 0.75, faction B holding 1 pays 0.25. Each faction pays its share if it can afford it (per-faction `CanAffordInfluence` on its share); a faction that cannot afford its share skips it — the other factions' paid shares still fund a proportional fraction of the spread (see below).
 - **Unowned control points get a free pass:** any point of the nation held by no faction contributes no payer and no cost share — that fraction of the spread happens free.
-- **Funding fraction semantics:** total spread potency = sum of paid shares ÷ total cost. If all payer factions afford their shares, the full pop-weighted split applies; if only half the cost is paid, the non-owned spread proceeds at half strength (grants scaled proportionally). Owned-region nudges (rule 1) always apply in full regardless.
-- **Payment path:** per-faction `TIFactionState.CanAffordInfluence(share)` then `AddToCurrentResource(−share, FactionResource.Influence, ...)` (TIFactionState.cs:869 pattern, same as the mod's LegitimiseClaim option).
-- **Order:** compute affected set → cost → per-faction affordability & payment → owned nudges → spread (paid fraction only).
+- **All-or-nothing payment (user amendment):** if **full** payment cannot be made in the proportional split, **no payment is deducted at all** and only the **owned-region nudges** (rule 1) apply — the non-owned spread is skipped entirely. Partial spreads are out (supersedes the earlier "partial payment = partial spread" semantics).
+- **Payment path:** per-faction share check via `TIFactionState.CanAffordInfluence(share)` for **all** payer factions first; only if every faction can afford its share are all shares deducted via `AddToCurrentResource(−share, FactionResource.Influence, ...)` (TIFactionState.cs:869 pattern, same as the mod's LegitimiseClaim option). Any one faction failing its check → nobody pays, no spread.
+- **Order:** compute affected set → cost → all-or-nothing affordability check → owned nudges → spread (only if paid).
 - AI factions pay on the same terms; there is no player/AI distinction. Uncontrolled nations (no faction holds any point) spread entirely free.
+
+**Offensive/Defensive cultural stance policy (user spec, same evening).** A **new national policy option pair** (third synthetic key, `(PolicyType)1003`, registered by the existing `Patch_RegisterPolicyOptions` postfix alongside 1001/1002) toggles the nation's cultural spread stance:
+
+- **Offensive (default):** the rules above — owned nudges at 0.5%, influence cost paid for the pop-weighted non-owned spread.
+- **Defensive:** the non-owned spread is **zeroed** and the owned-region nudge is **doubled to 1.0%**. No influence cost is incurred (no foreign targets affected).
+- Per-nation state: the stance is a property of the nation (set by whoever controls it via the policy), read by `OnUnityCompleted` at completion time. Save/load persistence follows the same path as the existing mod policy options.
+- The policy pair overrides the mod's existing synthetic options' pattern: two mutually exclusive options (Offensive / Defensive), same `TIPolicyOption` subclass surface already verified in §4.13 of the E2E doc.
 
 **Interaction with rev 9 C13:** claim-band evaluation (C13c) reads shares after the completion pass in the same tick; a completion that pushes a claimed region to ≥30% flips the claim that tick.
 
