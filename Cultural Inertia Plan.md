@@ -15,14 +15,27 @@ This section supersedes the conflicting parts of the rev 8 locked parameters (sp
 
 1. **Research-granted friendly claim → conversion.** When a nation that holds a research-granted **non-hostile** claim (active template, not in `hostileClaims`) converts a region to its control — by unification (`AbsorbNation`, already hooked via `OnAbsorption`) **or** invasion (`TransferRegionsControlTo`, already patched) — the region's claimant-culture share is seeded to **max(50%, current claimant culture share)**.
    - *Supersedes rev 8 "seed on capture 0%" for this case only.*
-2. **Research-granted friendly claims are immune to demotion.** A claim in state 1 can never fall to hostile by cultural incompatibility. Implementation note: because the 50% floor exceeds the 30% friendly threshold, and owner-culture share is monotonically non-decreasing (culture only moves via Unity completions and recognised absorptions in the owner's favour), the seed itself guarantees permanent friendliness — **no separate immunity flag or persistence is required**. `ClaimWillBeHostile`'s culture rule simply cannot trip at ≥50%.
+1. **Research-granted friendly claim → conversion.** When a nation that holds a research-granted **non-hostile** claim (active template, not in `hostileClaims`) converts a region to its control — by unification (`AbsorbNation`, already hooked via `OnAbsorption`) **or** invasion (`TransferRegionsControlTo`, already patched) — the region's claimant-culture share is seeded to **max(50%, current claimant culture share)**.
+
+2. **Research-granted friendly claims never demote by culture.** A claim whose bilateral template is active and non-hostile **stays friendly regardless of cultural share** (user amendment 21:21). The 50% figure is **not** a standing floor on culture — it is only the **minimum seed on conversion**: a claimant converting the region with, e.g., 38% culture is bumped to 50% at that moment; a claimant whose culture has since fallen to 31% or below is *not* re-floored. The culture value itself floats freely; only the claim's friendliness is protected.
+
+2a. **Mod-generated (adjacency/island) friendly claims demote by culture.** Claims granted by the mod's claim engine that are currently friendly (≥30%) **fall to hostile when the claimant's share drops below 25%** — the hysteresis band's lower bound. There is no template protecting them; only research-granted claims enjoy permanent friendliness. (Supersedes any blanket immunity reading.)
 3. **Mod adjacency/island claims start hostile at 0%.** The claim engine (`ClaimAdjacentUnclaimedRegions`) keeps `SetClaim(fromSeizure: true)`; composition untouched — the conquest rule (0% seed) still applies. These claims enter state 4 below.
 4. **Conversion band (hysteresis).** Any **vanilla hostile claim** (including research-granted ones that are currently hostile) or **mod-generated claim**:
    - becomes **friendly** when claimant culture share reaches **≥ 30%**;
-   - falls back to **hostile** when share drops **< 25%**;
+   - falls back to **hostile** when share drops **< 25%** (mod-sourced friendly claims only — research-granted claims are exempt per rule 2; a research-granted claim that was seeded hostile stays hostile until it earns ≥30%, then never demotes);
    - between 25–30% the current state holds (no thrash).
    - Friendly→hostile flip: `SetClaim(region, fromSeizure: true, forceFromSeizure: true)` adds to `hostileClaims` (TINationState.cs:7668, verified). Hostile→friendly flip: `SetClaim(region, false, false)` on an existing claim routes to `RemoveHostileClaim(region)` (verified).
 5. **Hostility derivation.** `ClaimWillBeHostile(region, ...)` (TINationState.cs:7723, verified) is patched per rev 8 (democracy rule → culture band) **plus** state-2 immunity: claims with an active bilateral template that were seeded under rule 1 always return non-hostile. `WillBeBeHostileExplanation` text updated to describe the culture band.
+
+### Occupation mechanics (user spec, 2026-10-06 21:21)
+
+A region that is **occupied** (under `CheckAndTriggerOccupation`-style occupation, vanilla's owner-is-present-but-not-controlling state — the mod already patches/queues on this path) rather than annexed counts for cultural mechanics as follows:
+
+- **Counts as owned by the occupier at half effect.** The occupier's cultural composition tracking treats the occupied region as part of its owned set, but all cultural rates against it — defensive budget grants and cohesion-malus calculations — apply at **×½**.
+- **Counts against the occupier's defensive budget at full population cost.** The occupied region's full population enters the inverse-population split of the occupier's 0.5% defensive budget (it dilutes the occupier's home grants like a normal owned region), but only delivers half-strength culture into itself. I.e. it costs the occupier full dilution and returns half assimilation — occupations are culturally expensive to hold.
+- **Blocks the original owner's spread.** An occupied region suppresses the original owner's offensive spread along that edge: owned regions of the original owner that border the occupied region gain **no defensive-budget culture from the original owner's Unity completions** for as long as the occupation holds (the original owner's border region set for spread purposes treats the occupied region as a dead edge). This applies to *all* of the original owner's cultural spread mechanisms targeting its own bordering owned regions' adjacency links.
+- **Ends when the occupation ends.** On annexation, the normal conversion rules fire (0% seed for conquest, or the research-claim 50% bump if the occupier held a research-granted claim); on liberation/restoration, the original owner's adjacency resumes and the occupier's claims/culture tracking releases the region.
 
 ### Unity completion effect amendment (user spec, 2026-10-06 — same session as rev 9; amended same evening)
 
