@@ -46,6 +46,38 @@ A region that is **occupied** (under `CheckAndTriggerOccupation`-style occupatio
 
 3. **Non-owner population weighting.** Any calculation that **benefits from population count** (defensive/offensive budget splits by population weight, Outreach cost basis, absorption/seed sizing) counts the **non-nation cultural populace at ×0.3** — foreign inhabitants are worth 30% of owner-culture inhabitants for beneficial effects. Any **detrimental** calculation (cohesion malus scaling, occupation dilution cost, breakaway pressure) counts them at **×1.3** — foreign pop is 30% heavier in penalties. Rationale: culturally foreign populations contribute less to the state's cultural consolidation but amplify unrest and mismatch pressure. All plan formulas that weight by population should be read with these two multipliers applied to the foreign portion.
 
+#### Affected vanilla population-effect calculus (compiled 2026-10-07, verified against decompile + Reference doc)
+
+The ×0.3 (beneficial) / ×1.3 (detrimental) foreign-populace weighting applies to the following vanilla calculations. Classification is by outcome sign for the acting nation, not by code location:
+
+**Beneficial (foreign populace counts ×0.3):**
+1. **`economyScore` / `SetBaseInvestmentPoints_month()`** (TINationState.cs:~4530) — IP base is GDP^0.35; GDP is the product of population and per-capita income. Foreign populace contributes 30% of IP weight.
+2. **`priorityEffectPopScaling`** (`SetPriorityEffectPopScaling()`, ~4760) — `(pop/50M)^populationBasedIPEffectScaling` multiplies all priority effect magnitudes. Foreign ×0.3 for effects whose outcome is beneficial (Economy income, Knowledge/education, Unity cohesion+, Mission Control, Environment cleanup, etc.).
+3. **`economyPriorityPerCapitaIncomeChange × population_Millions`** in `OnEconomyPriorityComplete()` (~5164) — GDP gain scales with pop; foreign ×0.3.
+4. **Knowledge priority education gain** (~4871) — scales with `population_Millions/82`; foreign ×0.3.
+5. **Welfare priority inequality reduction** (~4863) — scales with `population_Millions/335`; the effect is beneficial, foreign ×0.3.
+6. **Influence income from public opinion** (~4358) — `population_Millions × GetPublicOpinionOfFaction × 0.5 × (1+PublicOpinionInfluence)`; foreign ×0.3 (a faction holding a culturally foreign CP earns ~30% of its influence from the foreign share).
+7. **`MaxAnnualDirectInvestIPs`** (~4786) — `pop^0.175 × GDP^0.175`; foreign ×0.3.
+8. **Nation research output** (~3083 formula: education × pop × PCGDP curve × democracy curve × cohesion/unrest modifiers) — foreign ×0.3.
+9. **`allowedArmies`** (~3311) — army cap from `population_Millions / minPopulationForAdditionalArmiesPer_millions`; foreign ×0.3 (foreign pops raise fewer home armies).
+10. **`spaceDefenseCoverage`** (~3498) — anti-space-defense coverage weighted by region pop; foreign ×0.3.
+11. **Annual population growth rate** (~3561) — region-growth weighted by pop; foreign ×0.3.
+
+**Detrimental (foreign populace counts ×1.3):**
+1. **`populationImpactOnCohesion`** (~2386) — `−pop^populationCohesionImpactPower`; foreign ×1.3 (foreign-heavy nations take heavier cohesion drag).
+2. **`distanceFromCapitalToPopCenter_km`** (~2475) — population-weighted population-centroid feeding `regionsImpactOnCohesion`; foreign ×1.3.
+3. **`hostileClaimsImpactOnUnrest` / `TotalImpactFromHostileClaims()`** — pop-weighted hostile-claim unrest; foreign ×1.3.
+4. **Separatist-movement cohesion impact** (`cohesionImpactMultiplierIfSeparatistMovement` weighting in claim/cohesion tick) — foreign ×1.3.
+5. **Climate damage** (`MonthlyTemperatureEconomicImpact`, ~4350) — environment-damage weighting by `populationInMillions`; foreign ×1.3.
+6. **GHG emissions** — `PoptoGHG` (11373: 2.41) converts population to emissions; foreign ×1.3.
+7. **Nuke/casualty losses** (TIRegionState ~1264) — `populationInMillions × strength` deaths; foreign ×1.3 (foreign populace takes disproportionate casualties — reflecting societal separation from state protection).
+8. **Occupation dilution cost** (this mod's own rule, same multiplier set) and **`investmentPoints_occupationPenalty_frac`** (~2392) — penalises IP by occupied GDP proportion, itself pop-driven; foreign ×1.3.
+9. **Breakaway/secession pressure term in the minority-rule malus** (this plan) — foreign ×1.3.
+
+**Excluded (structural bookkeeping, unweighted):** perCapitaGDP as a ratio (it divides by total pop — re-weighting the denominator would silently inflate GDP for mixed nations; the ×0.3 already enters through the GDP numerator), population *proportions* in `Independence()`/secession splits (~9556, ~10244), `PeriodicOrganicCoupChance()` (no pop term), unrest rest state (no direct pop term; army-based unrest relief is per-army, not per-pop), and `RandomRegionWeightedByPopulation` targeting (a selector, not an effect).
+
+**Implementation note:** vanilla population fields are read-only aggregates. The mod should implement a `WeightedPopulation(TINationState/TIRegionState, beneficial|detrimental)` helper that splits each region's `populationInMillions` into owner-culture share (full weight) and foreign share (×0.3 or ×1.3), and inject it at the listed call sites via Harmony patches on the getters where feasible (patch the nation-level getters, e.g. an `effectivePopulation` prefix on `population_Millions` is NOT possible — instead patch the specific methods above). Where a method body is too entangled (e.g. research formula), postfix-scale the result by the observed foreign share rather than patching internals.
+
 ### Unity completion effect amendment
 
 Supersedes rev 8's flat assimilation rule ("+0.5% owner culture per Unity completion") and the flat portion of the Cultural Outreach policy's effect model.
