@@ -88,7 +88,7 @@ Estimated total: ~210 credits.
 - **Defunct nations:** frozen display name.
 - **Assimilation:** flat +0.5% owner culture per Unity completion, taken proportionally from other cultures; <0.5% snaps to zero.
 - **Friendly-claim threshold:** 30% culture share, configurable (default 30). Replaces vanilla democracy-based hostile-claim logic; `ClaimWillBeHostile` patched; `WillBeHostileExplanation` text updated; vanilla hostile-claim cohesion/unrest penalties zeroed and replaced by the cultural malus. *(Rev 9 adds hysteresis fallback at <25% and research-claim immunity — see the rev 9 amendment.)*
-- **Cultural Outreach policy:** apply your Unity completions to one foreign claimable region (any region claimable under creeping-borders rules). **No influence cost** (user amendment 20:31: the additional per-completion target cost is removed) — the costed path is the broad offensive spread; Outreach is the free, focused alternative. Confirmation dialog on selection shows remaining completions to 30%. Auto-cancel: exec control point of target or executing nation changes faction. One target per nation. AI may use it on adjacent claimable regions.
+- **Cultural Outreach policy:** apply your Unity completions to one foreign claimable region (any region claimable under creeping-borders rules). **Influence cost identical in form to the broad offensive spread** (user amendment 20:32): 1 influence per 100M of the **target region's population** per Unity completion, no cap, paid by the completing nation's control-point factions proportionally, all-or-nothing — if payment fails, that Outreach completion nudges owned regions only (defensive-equivalent behaviour for that completion) and the target's clock does not advance. Confirmation dialog on selection shows live cost + remaining completions to 30%. Auto-cancel: exec control point of target or executing nation changes faction. One target per nation. AI may use it on adjacent claimable regions.
 - **Absorption:** recognised unification (via requiredNationState research projects) seeds absorbed regions at 50% absorber culture; unrecognised seeds unchanged.
 - **UI:** region tooltip culture breakdown (sorted shares, <0.5% hidden, frozen names for defunct nations) + assimilation progress ("Assimilation: 37%, 163 completions remaining"); claim UI recolors on the 30% threshold.
 - **Persistence:** culture compositions saved in savegame structure; fallback on load = current owner at 100%.
@@ -104,7 +104,7 @@ Estimated total: ~210 credits.
 
 ## Mod menu tunables
 
-Friendly threshold (default 30) · max malus (default 20, range 0–30) · breakaway frequency multiplier (default ×3, range 1–10) · breakaway malus relief (fixed ×0.5). *(Outreach per-target cost removed at rev 9; influence cost now attaches only to the broad offensive spread.)*
+Friendly threshold (default 30) · max malus (default 20, range 0–30) · breakaway frequency multiplier (default ×3, range 1–10) · breakaway malus relief (fixed ×0.5). *(Outreach cost unified with the broad spread at rev 9: 1 influence per 100M target pop, proportional control-point split, all-or-nothing.)*
 
 ## Balance watch-items for playtesting
 
