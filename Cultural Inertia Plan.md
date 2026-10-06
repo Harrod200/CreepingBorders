@@ -42,6 +42,14 @@ Supersedes rev 8's flat assimilation rule ("+0.5% owner culture per Unity comple
 
 **Resolution refactoring note.** Population-weighted fractional grants (e.g. 0.04% on a large neighbour) fall below the current composition resolution — the model's minimum quantum. The composition representation must be refactored to accumulate sub-resolution deltas: either (a) switch shares to higher-precision storage (float accumulation with a global remainder/slop bucket per region), or (b) move to integer basis-point/permille counters. Decision at implementation; (a) is the lower-risk default. Below-resolution grants must be *carried*, not discarded, so repeated completions still reach the 30% band eventually.
 
+**Influence cost (user spec, same evening).** Unity priority completion now carries an **influence cost for the non-owned spread**, scaling with the affected unowned/foreign population and **capped at 2 influence**:
+
+- Cost formula (proposal, tunable): `cost = min(2, Σ(affectedPopᵢ) / 1,000M)` — i.e. ~1 influence per billion of affected foreign population, capped. Owned-region nudges are free and always apply.
+- **Who pays is an open decision:** Unity completions fire for AI-controlled nations too; a nation's controlling faction (via `TIFactionState`) is the natural payer — a nation with no controller pays 0 and spreads free. Alternative: only player-controlled nations pay. Default proposal: controlling faction pays; uncontrolled nations spread for free.
+- **Cannot afford:** the completion still resolves; only the **owned-region nudges** (rule 1) apply, and the non-owned spread is skipped for that completion. No partial spread, no refund mechanism.
+- Payment via the verified vanilla path: `TIFactionState.CanAffordInfluence(cost)` check then `AddToCurrentResource(-cost, FactionResource.Influence, ...)` (TIFactionState.cs:869 pattern, same as the mod's LegitimiseClaim option).
+- The cost must be computed **before** applying rule 2 (so the failed-payment path doesn't consume the tick's budget split); order: compute affected set → cost → affordability → owned nudges → spread (if paid).
+
 **Interaction with rev 9 C13:** claim-band evaluation (C13c) reads shares after the completion pass in the same tick; a completion that pushes a claimed region to ≥30% flips the claim that tick.
 
 ### Implementation plan (checkpoint C13, extends C10)
