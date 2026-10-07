@@ -57,8 +57,20 @@ static void OnRegionConverted(TIRegionState r, TINationState from, TINationState
         SetCulture(r, to.cultureId, S.ResearchClaimConversionFloor);  // bump UP only
 
     // Rule 2 — unclaimed conquest → 0% seed (existing rev 8 rule, unchanged)
-    // Rule 3 — unification of same-culture regions: composition carries over
-    //          (AbsorbNation postfix, CulturalInertia.cs:399, already hooked)
+    // Rule 3 — unification: composition carries over (AbsorbNation postfix,
+    //          CulturalInertia.cs:399, already hooked). Absorption seed is
+    //          max(S.AbsorptionSeedFloor, current absorber share) — bump UP only.
+    // Rule 3b — identity-changing unification (France absorbs Germany -> EU):
+    //          absorber TINationState persists (rename is effect-side flavour),
+    //          so per-region shares keyed to its cultureId carry through intact.
+    //          Destroyed joining nation's culture stays as foreign-culture
+    //          residue and decays by normal drift.
+    // Rule 3c — ONLY custom case: if a template renames the *joining* nation
+    //          into an existing third culture (Scotland absorbs rump-UK ->
+    //          Scotland), merge its composition shares into the successor's
+    //          share per region before the joining nation is destroyed.
+    //          Hook: read the unification template's rename target; if it maps
+    //          to another extant nation's cultureId, fold shares, then continue.
 
     // Rule 4 — seceded/breakaway nations seed at 50% of parent owner culture
     // Patch: TIRegionState secession paths route through TransferRegionsControlTo;
