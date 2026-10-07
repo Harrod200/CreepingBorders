@@ -187,7 +187,8 @@ before shipping.
    against the locked spec on the owner machine (package copy builds clean but
    owner-machine commits are the source of truth).
 3. **C5 rising threat narrative** — not started.
-4. **Cultural Inertia plan (rev 8)** — fully designed (see Cultural Inertia Plan.md),
+4. **Cultural Inertia plan (rev 9)** — fully implemented (C13; see Cultural
+   Inertia Handover Package v2 for status). Design: Cultural Inertia Plan.md.
    zero code written. Hooks identified: OnUnityPriorityComplete, AbsorbNation,
    DailySecessionCheck, SecessionChance.
 5. **Less-invasive policy refactor** — proposal ready (Docs/Less Invasive Policy

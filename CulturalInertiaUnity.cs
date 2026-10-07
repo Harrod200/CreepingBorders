@@ -10,7 +10,7 @@ namespace CreepingBorders
     /// C13 Cultural Inertia — Unity completion engine.
     ///
     /// Replaces vanilla Unity priority behaviour when the Cultural Inertia
-    /// master toggle is on (prefix patch, __runOriginal = false).
+    /// master toggle is on (replacing prefix).
     ///
     /// Handover §3.2–3.3:
     ///   Daily Unity IP = GDP_B^0.35 × 1.0 × 12/365.2422 (vanilla economyScore);

@@ -7,7 +7,7 @@ friction. Everything here is decided; do not relitigate (§8).
 
 1. Read `Docs/Efficiency Instructions for Future Instances.md` (golden rules).
 2. Run `PREFLIGHT.sh` (or restore-build.sh). Build must be green before edits.
-3. Read `Docs/Cultural Inertia Plan.md` (rev 9, repo root of /rool-drive/CB)
+3. Read `Docs/Cultural Inertia Plan.md` (rev 9, in Docs/)
    — the behavioural contract. Then this package. Then code.
 4. Search `Docs/Terra Invicta Class & Method Reference.md` (2.9 MB, VERIFIED)
    before decompiling anything. Never use the two

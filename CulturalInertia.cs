@@ -663,10 +663,13 @@ namespace CreepingBorders
         {
             // Handover §3.2: the mod REPLACES vanilla Unity completion when the
             // Cultural Inertia master toggle is on (replacing prefix).
-            static bool Prefix(TINationState __instance, ref bool __runOriginal)
+            // NOTE: plain Lib.Harmony does not support ref __runOriginal in a
+            // prefix (HarmonyX-only) — it produces InvalidProgramException when
+            // building the wrapper. Returning false is the portable way to skip
+            // the original.
+            static bool Prefix(TINationState __instance)
             {
                 if (!CreepingBordersCls.enabled || !Enabled) return true;
-                __runOriginal = false;
                 CulturalInertiaUnity.RunCompletion(__instance);
                 return false;
             }

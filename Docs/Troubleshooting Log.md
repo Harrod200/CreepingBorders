@@ -1,0 +1,33 @@
+# Troubleshooting Log — Creeping Borders
+
+Append-only. Newest at bottom. One entry per incident: date, symptom, root cause, fix, status.
+Update `/space/creepingborders/project-state.json` pickup line when a session's work lands.
+
+---
+
+## 2026-10-07 — session obu8ve (pickup zip `CreepingBorders Pickup 2026-10-07`)
+
+### Incident 1 — InvalidProgramException at patch time
+- **Symptom:** `[CreepingBorders] [Error] Failed to apply patches: HarmonyLib.HarmonyException: Patching exception in method null ---> System.InvalidProgramException: Invalid IL in method ... IL_0010: call 0x00000001`. Mod loads but `PatchAll` aborts → zero patches applied.
+- **Root cause:** C13 prefix in `CulturalInertia.cs` (`OnUnityPriorityComplete`) used `ref bool __runOriginal` as an injectable prefix parameter. That is a **HarmonyX** feature. This project uses **Lib.Harmony 2.3.6 (pardeike)**, whose argument injector emits broken IL for that parameter → invalid dynamic wrapper.
+- **Fix:** Replaced prefix with a plain replacing prefix: `if (!enabled) return true; RunCompletion(__instance); return false;` Semantics unchanged.
+- **Status:** Fixed, confirmed by next load reaching Incident 2.
+
+### Incident 2 — "Undefined target method" for Patch_PeriodicNationUpdateTask
+- **Symptom:** `HarmonyException: Patching exception in method null ---> ArgumentException: Undefined target method for patch method static System.Void CreepingBorders.Patch_PeriodicNationUpdateTask::Postfix(TINationState __instance)`.
+- **Root cause:** Patch attribute targeted `typeof(TINationState)` with method name `"PeriodicNationUpdateTask"`. That method is actually private on `PavonisInteractive.TerraInvicta.Systems.PeriodicUpdates.NationPeriodicUpdate` (namespace confirmed from Assembly-CSharp.dll strings; class/method documented in `Terra Invicta Class & Method Reference.md` §NationPeriodicUpdate). Name lookup on the wrong type → null → exception aborts all of `PatchAll`.
+- **Fix:** `CulturalInertiaAI.cs`: added `using ...Systems.PeriodicUpdates;`, retargeted `[HarmonyPatch(typeof(NationPeriodicUpdate), "PeriodicNationUpdateTask")]`, postfix binds the instance's `TINationState nation` parameter by name and aliases it to `__instance`.
+- **Status:** Fixed. Full patch-target audit done against the verified reference — all other targets exist (TINationState getters/properties, GameControl, GameStateManager, PolicyManager, UI controllers, AIDailyFactionPlanner). Build green: 0 errors, 1 pre-existing warning.
+
+## Environment notes (VM, not incidents)
+- No .NET SDK preinstalled. Installed SDK 8.0 to `$HOME/dotnet` via dotnet-install.sh. Build command:
+  `PATH=$HOME/dotnet:$PATH DOTNET_CLI_TELEMETRY_OPTOUT=1 FrameworkPathOverride=$HOME/.nuget/packages/microsoft.netframework.referenceassemblies.net48/1.0.3/build/.NETFramework/v4.8/ dotnet build -c Release -v q`
+- Zip did not include `nuget-packages-local/`; the csproj's net48 reference-assemblies path only materialises after `dotnet restore`. If a fresh checkout fails with `CS0006: Metadata file '/mscorlib.dll' could not be found`, run `dotnet restore` first.
+- pythonnet can't load Assembly-CSharp (no mono runtime on VM); use `strings` on the ref-dlls or the verified docs instead. `dnfile` OOMs on this dll (~490 MB RAM limit) — don't retry.
+
+### Doc consolidation (2026-10-07, session obu8ve)
+- RESUME.sh created then removed on owner instruction; pickup orientation is via Docs read-order + this log instead.
+- Canonical Docs/ folder only. Deleted as stale/superseded: Docs/BUILD NOTES.md (older copy; stale paths), Docs/Handover Notes v2.md, Docs/Handover Notes v3.md (superseded by v5), Docs/Cultural Inertia Implementation Plan.md (pseudocode plan; C13 implemented, normative docs are CI Handover v1 + Plan rev 9), Docs/CreepingBorders Handover Package v2.md (actually old Handover Notes v2 under a wrong name).
+- Root duplicates removed; root-only docs moved into Docs/ (Build Setup.md, Cultural Inertia Plan.md). Docs copies of E2E Verification and Less Invasive refactor were identical to root.
+- Handover Notes v5 task entry updated: Cultural Inertia rev 8 designed -> rev 9 implemented (see CI Handover Package v2).
+- Efficiency Instructions amended: pickup-path variant documented; Troubleshooting Log referenced in golden rules; /rool-drive/CB path rule generalized.

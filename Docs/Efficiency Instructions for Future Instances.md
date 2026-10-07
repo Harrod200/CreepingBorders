@@ -5,10 +5,12 @@ wasted 30-50% of their budget re-deriving known things.
 
 ## Golden rules
 
-1. **Run PREFLIGHT.sh first.** It installs the SDK, restores the NuGet cache,
-   builds the code, and verifies the runtime caches. Cold start to green
-   build in one command. Do not troubleshoot build errors before running it
-   - 90% are environmental (wiped home), not code errors.
+1. **Run PREFLIGHT.sh first** (repo root; installs the SDK, restores the
+   NuGet cache, builds, verifies). On a fresh pickup where PREFLIGHT may be
+   absent, build per `Docs/Build Setup.md` and log any environment gotchas in
+   `Docs/Troubleshooting Log.md`. Build must be green before edits.
+   Do not troubleshoot build errors before this — 90% are environmental
+   (wiped home), not code errors.
 
 2. **Search the reference docs before decompiling.**
    - Docs/Terra Invicta Class & Method Reference.md (2.9 MB, VERIFIED):
@@ -36,13 +38,17 @@ wasted 30-50% of their budget re-deriving known things.
 
 6. **Env quirks worth knowing immediately:**
    - $HOME and /tmp are wiped on VM boot; nothing there survives.
-   - Do ALL work under /rool-drive/CB (persists across boots). Never use
-     /scratch, $HOME, or /tmp as a working location — they are wiped on
-     VM boot/recycle, which cost us the git history once
-     (commits 3dec515..c522d5e, session 4).
-     The repo lives at /rool-drive/CB/repo, and its durable copy is on
-     GitHub: https://github.com/Harrod200/CreepingBorders. Clone or push
+   - Path rule: work in the repo under /rool-drive, never in /scratch,
+     $HOME, or /tmp — they are wiped on VM boot/recycle, which cost us
+     the git history once (commits 3dec515..c522d5e, session 4).
+     On the owner machine the canonical checkout is /rool-drive/CB/repo;
+     on pickup VMs the working copy is the unzipped pickup (e.g.
+     /rool-drive/attachments/<session>/CreepingBorders Pickup YYYY-MM-DD/repo).
+     The durable copy is on GitHub:
+     https://github.com/Harrod200/CreepingBorders. Clone or push
      there; do not park state anywhere else.
+   - Before diagnosing build issues, read the environment notes in
+     `Docs/Troubleshooting Log.md` (dotnet SDK location, restore order).
    - The csproj is old-style net48 built with the modern SDK via
      FrameworkPathOverride - see Build Setup.md before "fixing" it.
    - HintPaths in the csproj may point at the owner's Steam install. Correct

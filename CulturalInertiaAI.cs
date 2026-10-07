@@ -5,6 +5,7 @@ using HarmonyLib;
 using UnityEngine;
 using PavonisInteractive.TerraInvicta;
 using PavonisInteractive.TerraInvicta.Tasks;
+using PavonisInteractive.TerraInvicta.Systems.PeriodicUpdates;
 
 namespace CreepingBorders
 {
@@ -23,11 +24,15 @@ namespace CreepingBorders
         // ------------------------------------------------------------------
         // Stance AI (§10.2). Runs at the vanilla 14d nation cadence.
         // ------------------------------------------------------------------
-        [HarmonyPatch(typeof(TINationState), "PeriodicNationUpdateTask")]
+        // NOTE: PeriodicNationUpdateTask is private on NationPeriodicUpdate
+        // (Systems/PeriodicUpdates), NOT on TINationState. Postfix binds the
+        // 'nation' parameter by name.
+        [HarmonyPatch(typeof(NationPeriodicUpdate), "PeriodicNationUpdateTask")]
         public static class Patch_PeriodicNationUpdateTask
         {
-            static void Postfix(TINationState __instance)
+            static void Postfix(TINationState nation)
             {
+                var __instance = nation;
                 try
                 {
                     if (!CulturalInertia.Enabled) return;
