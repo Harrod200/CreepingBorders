@@ -69,3 +69,14 @@ Ambon for Makassar), producing two-way loops.
 **Fix:** Rank candidates by polygon distance TO THE CAPITAL (ascending), tie-break by
 distance to self. Next hop now always points homeward: Medan->Jakarta,
 Banda Aceh->Medan, Ambon->Makassar, Makassar->Jakarta.
+
+## Incident 6b (2026-10-07) — BFS-contiguous regions wrongly given island next-hop
+**Symptom:** Glasgow (Full via BFS adjacency chain through Birmingham) showed
+"Island route via Birmingham". Belfast correctly showed "Island route via Glasgow
+(22 km)". Any region in trueContiguousRegions flagged LandmassType.Island got a
+next-hop, even when it had a direct adjacency path to the capital.
+**Cause:** the FullyContiguous branch only tested GetLandmassType()==Island, which
+is true for any region without naval adjacency — including land-connected Britain.
+**Fix:** gate the island next-hop on !CanReachCapitalThroughAdjacencies(region,
+nation). Adjacency-reachable regions keep PathType DirectBFS with no hop; only
+distance-bridged islands (Belfast, Ambon, Banda Aceh) show a route.

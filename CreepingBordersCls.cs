@@ -1135,8 +1135,12 @@ namespace CreepingBorders
                     ContiguityPathType = DiscontiguityInfo.PathType.DirectBFS
                 };
 
-                // If it's an island, try to find its next hop (the closest contiguous region or adjacent island)
-                if (region.GetLandmassType() == LandmassType.Island)
+                // Only regions that reached contiguity via island bridging get a next hop.
+                // A region with an adjacency path to the capital is a direct BFS route:
+                // even if flagged LandmassType.Island (no naval adjacency, e.g. Britain),
+                // showing an island hop would be wrong (Incident 6 follow-up).
+                if (region.GetLandmassType() == LandmassType.Island &&
+                    !CanReachCapitalThroughAdjacencies(region, nation))
                 {
                     result.NextHopRegion = FindClosestContiguousRegion(region, nation, trueContiguousRegions);
                     if (result.NextHopRegion != null)
