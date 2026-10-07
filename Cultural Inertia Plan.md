@@ -9,7 +9,7 @@ This section supersedes the conflicting parts of the rev 8 locked parameters (sp
 - Research-granted claims are distinguishable by an **active `TIBilateralTemplate`** with key `"Claim" + claimant.templateName + region.templateName` (`TemplateManager.Find<TIBilateralTemplate>(..., false)`, `BilateralIsActive()`). Verified: `TIRegionState.cs` lines 2465/2471/2496 (`NationsWithClaim`, `SecessionCandidates`). This test is save/load-proof with zero persistence (templates rebuild from data).
 - Mod-generated claims (adjacency/island engine) call `SetClaim(region, true, true)` and have **no** template → `Find` returns null → mod-sourced.
 - Caveat: some vanilla runtime claims (faction actions, war outcomes) also lack templates; the bilateral test classifies "research-granted (data-defined)" vs "everything else", which matches the two regimes specified below.
-- Note for UI (open item, pending decision): mod claims currently render **no flag icon** in the region list because vanilla's flag column is gated by active templates (`NationsWithClaim` filter), not by claims themselves.
+- Note for UI (resolved 2026-10-07, design intent): mod claims render **no flag icon** in the region list (the column is gated by active templates, which only research-granted claims have). This is a **feature**: the missing flag visually differentiates mod-granted claims from research-granted claims at a glance. Do not implement the runtime-template injection.
 
 ### Claim-culture state machine (normative rules)
 
@@ -148,8 +148,8 @@ Estimated total: ~210 credits.
 ### Design notes / risks
 
 - **Third-party conversion:** rule 1 fires only when the *claimant* converts the region. If a different nation seizes a research-claimed region, no seed occurs (their own claim path applies); on reconquest by the original claimant the floor re-applies.
-- **`NoHostileClaims` setting interaction:** that setting mass-clears `hostileClaims`; with rev 9 rules it should be re-scoped or retired in favour of the band, else the two fight each other. Decision pending user.
-- **Flag-icon visibility:** mod claims remain invisible in the region-list flag column unless the runtime-template injection discussed this session is implemented; this is orthogonal to the state machine and can be a separate checkpoint (C14) if wanted.
+- **`NoHostileClaims` setting interaction (resolved 2026-10-07):** the setting **overrides all hostile-claim additions** — both vanilla-sourced and mod-sourced. While active, nothing may add a claim to `hostileClaims`; mod-granted adjacency/island claims then behave as friendly regardless of the 30%/25% band. The band logic must gate on the setting before writing hostility.
+- **Flag-icon visibility (resolved 2026-10-07):** mod claims stay invisible in the flag column — intentional, as the visual differentiator between mod-granted and research-granted claims. No C14 template-injection work; C14 is retired.
 - **Democracy rule removal:** rev 8 already replaces `HostileClaimDueToDemocracy` with the culture band; rule 2's immunity relies on that replacement being in place.
 
 ### Original rev 8 locked parameters (retained; superseded only where rev 9 conflicts)
