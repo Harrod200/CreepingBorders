@@ -12,6 +12,7 @@ CreepingBordersCls.cs     — claims engine, policies, influence (exists)
 CulturalInertiaClaims.cs  — NEW: provenance, conversion seeding, hysteresis
 CulturalInertiaUnity.cs   — NEW: unity completion budgets, stance, influence payment
 CulturalInertiaEconomy.cs — NEW: effective-population weighting, minority malus
+CulturalInertiaAI.cs      — NEW: stance AI (§10.2), Outreach AI (§10.3)
 ```
 
 ## 1. Provenance (C13a) — `CulturalInertiaClaims.cs`
@@ -98,6 +99,7 @@ static void Prefix(TINationState __instance, out bool __runOriginal) {
     var n = __instance;
 
     // --- stance --------------------------------------------------------
+    // Player nation: read policy key. AI nation: §10.2 decides (cached).
     bool defensive = GetStancePolicy(n) == Stance.Defensive;   // 3rd synthetic policy key
 
     // --- budgets -------------------------------------------------------
@@ -250,6 +252,9 @@ the 3rd synthetic policy key (PolicyManager patch pattern at
 | `DetrimentForeignWeight` | 1.3 | §6 effective pop (detriment calcs) |
 | `SnapToZero` | 0.0005 | §7 remainder bucket |
 | `CulturalMismatchMax` | (existing) | §6 malus scale |
+| `AiInfluenceBuffer` | 15 | §10.2 stance AI influence threshold |
+| `AiOutreachCooldownDays` | 30 | §10.3 Outreach AI cooldown |
+| `AiOutreachMinScore` | 0.5 | §10.3 Outreach AI score gate |
 - Claim-source ledger persisted with the same save hook as compositions.
 
 ## 9. Test matrix (from the four session scenarios)
@@ -329,7 +334,24 @@ if (best.score > S.AiOutreachMinScore && CanAfford(full cost)) focus(best);
 Defaults as options: `AiInfluenceBuffer` 15, `AiOutreachCooldownDays` 30,
 `AiOutreachMinScore` 0.5.
 
-### 10.4 Deliberately not AI-driven
+### 10.4 Unified daily AI tick (CulturalInertiaAI.cs)
+
+```csharp
+static void DailyAiTick() {
+    foreach (var n in GameStateManager.AllNations().Where(n => n.extant)) {
+        if (n.executiveFaction == null) continue;
+        if (n.executiveFaction == GameStateManager.PlayerFaction()) continue;
+        // Stance — cheap, re-evaluate with the 14d nation cadence equivalent
+        if (n.ID % 14 == GameStateManager.Time().Now.Day % 14) DecideStance(n);   // §10.2
+        // Outreach — daily scoring, gated by cooldown
+        if (n.executiveFaction.aiOutreachCooldownUntil <= GameStateManager.Time().Now)
+            MaybeFocusOutreach(n);                                                // §10.3
+    }
+}
+// Hook: postfix on AIDailyFactionPlanner daily update.
+```
+
+### 10.5 Deliberately not AI-driven
 
 - Claim hysteresis (§3) is state-maintenance, not choice — runs for all.
 - Conversion seeding (§2) is event-driven, not choice.
