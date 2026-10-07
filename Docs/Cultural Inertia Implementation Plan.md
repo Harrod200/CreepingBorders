@@ -260,3 +260,77 @@ the 3rd synthetic policy key (PolicyManager patch pattern at
 4. Hysteresis: share oscillating at 27.5% must not flip hostility repeatedly.
 5. Failed payment: any faction short → owned 0.5% only, zero deduction.
 6. NoHostileClaims ON → no band writes, mod claims behave friendly.
+
+## 10. AI enablement
+
+Vanilla findings (verified in decompile):
+
+- `NationPeriodicUpdate.PeriodicNationUpdateTask` (Systems/PeriodicUpdates/NationPeriodicUpdate.cs:90)
+  runs every 14 days per nation and sets priorities via
+  `NationAI_SetPriority` (Actions/NationAI_SetPriority.cs). Vanilla Unity
+  logic (line 150): if `cohesionWarning || unrestWarning` → Unity at
+  `(10 - democracy) / 4`, onlyIfHigher. Otherwise nations revert to
+  `nation.template.initialPriorityPreset`.
+- `AIDailyFactionPlanner` runs the faction-level daily planner (councilor
+  missions, claims, wars). Faction AI drives control-point seizures and
+  counsel-based actions, not nation priorities.
+- `AIEvaluators.EvaluateNation` (AIEvaluators.cs:275) scores nations for
+  faction attention using `economyScore`, `research_month` — both already
+  reweighted by §6, so faction targeting adapts for free.
+
+### 10.1 What adapts for free (no code)
+
+- **Unity investment feedback loop.** The minority-rule malus (§6) lowers
+  `cohesionRestState`; nations drift toward `cohesionWarning` sooner; vanilla
+  then raises Unity. AI nations under cultural pressure self-correct by
+  consolidating — exactly the intended dynamic.
+- **Faction targeting.** Effective-population weighting flows into
+  `EvaluateNation` scores, so AI factions devalue culturally fragmented
+  nations and prioritize consolidating their own.
+
+### 10.2 Stance policy AI (new periodic logic)
+
+The stance policy is a 3rd synthetic policy key; vanilla AI never sets it.
+Add a postfix on `PeriodicNationUpdateTask`:
+
+```csharp
+static void Postfix(TINationState nation) {
+    if (nation.executiveFaction == null) return;        // uncontrolled: neutral default
+    if (nation.executiveFaction == GameStateManager.PlayerFaction()) return;  // player policy stays
+
+    bool atWar = nation.wars.Count > 0;
+    bool losingCulture = nation.regions.Any(r => Composition(r, nation.cultureId) < S.MinorityRuleThreshold);
+    bool occupied = nation.regions.Any(r => r.occupier != null);
+    float influence = nation.executiveFaction.influence;
+    float buffer = S.AiInfluenceBuffer;                 // default 15 (option)
+
+    SetStance(nation,
+        (losingCulture || occupied || (atWar && !influenceWealthy))
+            ? Stance.Defensive                            // free, protects interior
+            : Stance.Offensive);                          // broad push when flush
+    // influenceWealthy := influence > buffer + projected 30d offensive spend
+}
+```
+
+### 10.3 Outreach AI (new daily logic)
+
+Hook `AIDailyFactionPlanner` daily update (postfix). Score candidate targets
+per AI faction, run at most one focused Outreach per nation per cooldown:
+
+```csharp
+score(region, faction) =
+      Composition(region, faction.cultureId)              // near-promote bonus: 25-30% band worth most
+    + (region.nation == factionNation ? 0 : claimValue)   // hostile claim about to demote? rescue
+    - costPenalty(OutreachCost(region) / faction.influence)
+    + adjacencyBonus;                                     // must pass §5 adjacency gate
+if (best.score > S.AiOutreachMinScore && CanAfford(full cost)) focus(best);
+```
+
+Defaults as options: `AiInfluenceBuffer` 15, `AiOutreachCooldownDays` 30,
+`AiOutreachMinScore` 0.5.
+
+### 10.4 Deliberately not AI-driven
+
+- Claim hysteresis (§3) is state-maintenance, not choice — runs for all.
+- Conversion seeding (§2) is event-driven, not choice.
+- NoHostileClaims, budgets and thresholds: player options, not AI decisions.
