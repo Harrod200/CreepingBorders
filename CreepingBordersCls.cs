@@ -32,6 +32,7 @@ namespace CreepingBorders
         public bool EnableDiscontiguityMalus = false;
         public float DiscontiguityMalusPercentage = 5.0f;
         public bool EnableInstantAnnexations = false;
+        public bool UnificationUseCurrentCapital = true;
         public bool EnableDebugLogging = false;
         public bool EnableCulturalInertia = true;
         public float CulturalMismatchMax = 2.0f;
@@ -165,6 +166,10 @@ namespace CreepingBorders
             GUILayout.Space(8f);
             settings.EnableInstantAnnexations = GUILayout.Toggle(settings.EnableInstantAnnexations, "Enable Instant Annexations", emptyOptions);
             GUILayout.Label("Automatically annexes annexable regions instantly instead of requiring occupation", emptyOptions);
+
+            GUILayout.Space(8f);
+            settings.UnificationUseCurrentCapital = GUILayout.Toggle(settings.UnificationUseCurrentCapital, "Unification Uses Current Capital", emptyOptions);
+            GUILayout.Label("Unification requires a claim on the target's CURRENT capital instead of its original capital, so a destroyed or relocated original capital no longer blocks unification", emptyOptions);
 
             // ====================================================================
             // COHESION SYSTEM
