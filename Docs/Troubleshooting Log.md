@@ -43,3 +43,12 @@ Update `/space/creepingborders/project-state.json` pickup line when a session's 
 - Symptom: diffing mod `Loc.T` keys against mod Strings.en flagged 14 cohesion-reststate keys as missing.
 - Root cause: those keys are vanilla strings (TI Decompiled/Strings/en/UINation.en); the C13 `CohesionRestStateDetail` replication patch intentionally reuses vanilla keys per Docs/Creeping Borders E2E Verification.md.
 - Resolution: keys removed from mod Strings.en. AUDIT RULE: any key present under `TI Decompiled/Strings/en/*.en` is vanilla-supplied — do not add it to the mod's Strings.en. Only mod-original keys (UI.Region.Tooltip.*, CreepingBorders.*, UI.Notifications.CreepingBorders.*) belong there.
+
+## 2026-10-07 — Incident 4: Distance bridging never ran (dead-code manager)
+- Symptom: Indonesia (all-island regions) gained no contiguity from distance bridging; log showed only island-bridge BFS, 5 discontiguous regions.
+- Root cause: `PolygonalRegionConnectivityManager` (Pass A/B/C fixpoint) had ZERO callers — `GetTrueContiguousRegionsWithExtended` ran its own adjacency-only BFS + legacy island pass. The manager was dead code.
+- Also corrected: name→ID mapping. Ambon=2003_MoluccasandSulawesi, Biak=2003_NewGuinea. Both ARE in PolygonCache/BorderDistanceCache. Rule: resolve display names via REGION row column C ("in the X region"), never guess from ID substrings.
+- Verified numbers (cache, X=300/3X=900): Ambon↔Makassar 5.8 km (FULL), Biak↔Ambon 33.6 km (FULL), Samarinda↔Medan 209 km (FULL), Denpasar↔Jakarta 3 km (FULL). Replication of GeographicPolygonMath matches BorderDistanceCache to 2dp.
+- Gotcha: PolygonCache.csv lon/lat are RADIANS — do not double-convert.
+- Fix: `GetTrueContiguousRegionsWithExtended` now sources levels from `PolygonalRegionConnectivityManager.Get(nation)` (Full→FullyContiguous, Partial→ExtendedDistance/AllContiguous), legacy island pass retained as additive-only fallback. Expected Indonesia result: all owned regions Full, penalty → 0.
+- Status: build green; awaiting in-game load test.

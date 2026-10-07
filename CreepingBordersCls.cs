@@ -512,39 +512,33 @@ namespace CreepingBorders
             if (nation.capital.nation != nation)
                 return result;
 
-            // First pass: BFS from capital through adjacency only
-            Queue<TIRegionState> queue = new Queue<TIRegionState>();
-            queue.Enqueue(nation.capital);
-            result.FullyContiguousRegions.Add(nation.capital);
-            result.AllContiguousRegions.Add(nation.capital);
-
-            while (queue.Count > 0)
+            // Primary computation: PolygonalRegionConnectivityManager fixpoint BFS
+            // (adjacency pass, polygon distance bridging pass, island-bridge pass).
+            // Previously this method ran its own adjacency-only BFS, which ignored
+            // the polygon distance system entirely (archipelago nations like
+            // Indonesia got zero distance bridging — Incident 4).
+            var connectivity = PolygonalRegionConnectivityManager.Get(nation);
+            if (connectivity != null)
             {
-                TIRegionState current = queue.Dequeue();
-
-                foreach (TIRegionState neighbor in current.Neighbors)
+                foreach (var pair in connectivity.Levels)
                 {
-                    if (neighbor == null)
-                        continue;
-
-                    // Check adjacency: true for FullAdjacency or FriendlyCrossingOnly
-                    if (!neighbor.IsAdjacent(current, false))
-                        continue;
-
-                    // Only traverse if neighbor is owned by this nation or is unclaimed
-                    if (neighbor.nation != null && neighbor.nation != nation)
-                        continue;
-
-                    // Use Add() return value to check if already visited (more efficient than Contains())
-                    if (result.AllContiguousRegions.Add(neighbor))
+                    TIRegionState region = pair.Key;
+                    ConnectivityLevel level = pair.Value;
+                    if (level >= ConnectivityLevel.Partial)
                     {
-                        result.FullyContiguousRegions.Add(neighbor);
-                        queue.Enqueue(neighbor);
+                        result.AllContiguousRegions.Add(region);
+                        if (level >= ConnectivityLevel.Full)
+                            result.FullyContiguousRegions.Add(region);
+                        else
+                            result.ExtendedDistanceRegions.Add(region);
                     }
                 }
             }
 
-            // Third pass: Find island bridges (islands adjacent to contiguous regions)
+            // Legacy island-bridge pass retained: adds regions the manager could
+            // not reach (e.g. missing geometry). Levels already granted by the
+            // manager are >= Partial, and this pass only ADDS to AllContiguous,
+            // so it can never downgrade a distance-bridged result.
             if (nation.regions != null)
             {
                 FindContinentsConnectedByIslands(nation, result);
