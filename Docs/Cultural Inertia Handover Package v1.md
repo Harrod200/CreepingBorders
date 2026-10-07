@@ -179,3 +179,11 @@ commits run 791c8f7..4656c95, dated 2026-10-06/07). Key rulings:
 - HostileClaimsBlockCreep sub-option (D44) — separate, outstanding.
 - Less-invasive policy refactor — proposal ready in Docs, apply separately.
 - Map-data flag questions (Svalbard polygon etc.) — for the map author.
+
+## 10. Recent updates (2026-10-07)
+
+- Policy gating — with Cultural Inertia enabled, the Legitimise Claim
+  policy option is hidden and disabled (`Allowed()` returns false, which
+  both filters it out of `availableSetPolicyOptions` and invalidates any
+  queued option); claim conversion is handled organically by C13.
+  Builds clean (commit e020570).
