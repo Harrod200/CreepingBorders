@@ -1332,6 +1332,14 @@ namespace CreepingBorders
                     if (neighbor == null || visited.Contains(neighbor))
                         continue;
 
+                    // Ownership filter: a BFS route through foreign territory is
+                    // politically broken, not contiguous. If the only land path to the
+                    // capital crosses another nation, this region must fall through to
+                    // distance bridging instead (Incident 6c: Glasgow isolated from
+                    // London by a foreign Midlands must NOT upgrade to DirectBFS).
+                    if (neighbor.nation != nation)
+                        continue;
+
                     // Only traverse full adjacencies
                     if (!neighbor.IsAdjacent(current, true))
                         continue;

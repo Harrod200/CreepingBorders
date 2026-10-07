@@ -80,3 +80,15 @@ is true for any region without naval adjacency — including land-connected Brit
 **Fix:** gate the island next-hop on !CanReachCapitalThroughAdjacencies(region,
 nation). Adjacency-reachable regions keep PathType DirectBFS with no hop; only
 distance-bridged islands (Belfast, Ambon, Banda Aceh) show a route.
+
+## Incident 6c (2026-10-07) — CanReachCapitalThroughAdjacencies crossed foreign territory
+**Scenario:** if the Midlands (Birmingham) ceased to be UK, Glasgow's only land path
+to London ran through foreign territory, but the BFS had no ownership test and
+upgraded Glasgow to DirectBFS / fully contiguous.
+**Fix:** ownership filter (neighbor.nation != nation -> skip) in the BFS. Consequence:
+Glasgow falls through to Pass B distance bridging (London 318.3 km -> Partial),
+matching the design intent of partial naval route contiguity for interrupted BFS
+routes. Belfast's bridge recomputes to nearest-to-capital Full region (Wales,
+116.27 km) instead of Glasgow (22 km, now non-Full).
+**Note:** distance bridging is deliberately ownership-blind (naval semantics); the
+filter guards BFS routes only.
