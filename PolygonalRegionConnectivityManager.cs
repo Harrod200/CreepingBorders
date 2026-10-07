@@ -119,6 +119,28 @@ namespace CreepingBorders
             var frontier = new Queue<TIRegionState>();
             frontier.Enqueue(capital);
 
+            // Incident 6d: physical reachability, ownership-AGNOSTIC. BFS over raw
+            // adjacency from the capital, ignoring nation boundaries. If a region is
+            // physically land-connected to the capital (even through foreign territory),
+            // its contiguity must never exceed Partial: geography says connected,
+            // politics says broken. Without this cap, a politically severed region just
+            // inside the Full distance gate (e.g. Glasgow 318 km vs 300 km threshold)
+            // would regain Full purely from geometry.
+            var physicallyReachable = new HashSet<TIRegionState>();
+            {
+                var bfs = new Queue<TIRegionState>();
+                bfs.Enqueue(capital);
+                physicallyReachable.Add(capital);
+                while (bfs.Count > 0)
+                {
+                    foreach (var n in bfs.Dequeue().AdjacentRegions(false))
+                    {
+                        if (n != null && physicallyReachable.Add(n))
+                            bfs.Enqueue(n);
+                    }
+                }
+            }
+
             while (frontier.Count > 0)
             {
                 var current = frontier.Dequeue();
@@ -155,6 +177,10 @@ namespace CreepingBorders
                         var level = dist.distanceKm <= FullDistanceX * X_km
                             ? ConnectivityLevel.Full
                             : ConnectivityLevel.Partial;
+                        // Cap: physically land-connected but politically severed regions
+                        // top out at Partial (Incident 6d).
+                        if (level == ConnectivityLevel.Full && physicallyReachable.Contains(neighbor))
+                            level = ConnectivityLevel.Partial;
                         Propagate(result, frontier, neighbor, level);
                     }
                 }

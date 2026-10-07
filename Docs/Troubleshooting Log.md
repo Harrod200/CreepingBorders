@@ -92,3 +92,13 @@ routes. Belfast's bridge recomputes to nearest-to-capital Full region (Wales,
 116.27 km) instead of Glasgow (22 km, now non-Full).
 **Note:** distance bridging is deliberately ownership-blind (naval semantics); the
 filter guards BFS routes only.
+
+## Incident 6d (2026-10-07) — Full cap for physically reachable but politically severed regions
+**Scenario:** with the Midlands foreign, Glasgow (318 km to London) would sit just
+over the 300 km Full gate; had it been under it, it would regain FULL contiguity
+purely from geometry despite a politically broken land route.
+**Rule (owner):** if a physical BFS route to the capital exists (ownership-agnostic),
+distance-based contiguity for that region is capped at Partial. Geography permits
+connection; politics breaks it; Partial is the ceiling.
+**Fix:** ownership-agnostic BFS from capital over AdjacentRegions(false) precomputed
+as physicallyReachable; Pass B caps Full->Partial for such regions.
