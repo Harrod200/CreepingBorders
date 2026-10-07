@@ -8,7 +8,7 @@ echo "== 1/5 .NET SDK =="
 if [ -x "$HOME/dotnet/dotnet" ]; then
   echo "   OK (already installed)"
 else
-  wget -q https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+  curl -sL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
   bash dotnet-install.sh --channel 8.0 --install-dir "$HOME/dotnet" >/dev/null
   echo "   installed"
 fi
