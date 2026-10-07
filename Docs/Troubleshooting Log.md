@@ -52,3 +52,9 @@ Update `/space/creepingborders/project-state.json` pickup line when a session's 
 - Gotcha: PolygonCache.csv lon/lat are RADIANS — do not double-convert.
 - Fix: `GetTrueContiguousRegionsWithExtended` now sources levels from `PolygonalRegionConnectivityManager.Get(nation)` (Full→FullyContiguous, Partial→ExtendedDistance/AllContiguous), legacy island pass retained as additive-only fallback. Expected Indonesia result: all owned regions Full, penalty → 0.
 - Status: build green; awaiting in-game load test.
+
+## Incident 5 — Divergent distance paths / missing island hop distance (2026-10-07)
+- Tooltip verification found the FullyContiguousIsland branch set NextHopRegion but never NextHopDistance (rendered "0 km").
+- ShortestBorderDistance_km had its own vertex-to-vertex computation + centroid fallback, diverging from GeographicPolygonMath's edge-to-arc algorithm used by the manager. Per owner ruling: no centroid fallback.
+- Fix: ShortestBorderDistance_km now delegates to GeographicPolygonMath.GetRegionPairDistance (Unknown/Beyond3X → float.MaxValue); PrecomputeAllPairs delegates likewise (appends misses to the shared CSV); removed dead PrecomputedTable/EnsureTableLoaded/PairKey from Cls; InvalidateCache now calls GeographicPolygonMath.ReloadTable.
+- Rule: one algorithm, one cache (GeographicPolygonMath/BorderDistanceCache.csv) — never fork distance logic.
