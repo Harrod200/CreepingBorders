@@ -38,6 +38,32 @@ namespace CreepingBorders
         public float UnityAssimilationStrength = 1.0f;
         public float AbsorptionRecognitionRate = 0.5f;
 
+        // --- C13 Cultural Inertia: Unity budgets ---
+        public float OwnedDefensiveBudget = 0.50f;
+        public float OwnedOffensiveBudget = 0.50f;
+        public float UnownedOffensiveBudget = 0.50f;
+        public float InfluenceCostPer100M = 1.0f;
+        public float NeutralNationWeight = 0.5f;
+        public bool UnityDefaultStanceDefensive = true;
+        public float IslandRangeKm = 300f;
+
+        // --- C13 Cultural Inertia: claims ---
+        public float HostileDemoteThreshold = 0.25f;
+        public float HostilePromoteThreshold = 0.30f;
+        public float ResearchClaimConversionFloor = 0.50f;
+        public float SecessionCultureFloor = 0.50f;
+
+        // --- C13 Cultural Inertia: economy / malus ---
+        public float MinorityRuleThreshold = 0.40f;
+        public float BeneficialForeignWeight = 0.3f;
+        public float DetrimentForeignWeight = 1.3f;
+        public float SnapToZero = 0.0005f;
+
+        // --- C13 Cultural Inertia: AI ---
+        public float AiInfluenceBuffer = 15f;
+        public int AiOutreachCooldownDays = 30;
+        public float AiOutreachMinScore = 0.5f;
+
         public override void Save(UnityModManager.ModEntry modEntry)
         {
             UnityModManager.ModSettings.Save<CreepingBordersSettings>(this, modEntry);
@@ -2227,6 +2253,17 @@ namespace CreepingBorders
                     {
                         nation.hostileClaims.Clear();
                     }
+                }
+            }
+
+            // §4: conversion seeds on capture — research-claim converts at
+            // max(50%, current), plain conquest never lowers the capturer's share.
+            if (CreepingBordersCls.Settings.EnableCulturalInertia)
+            {
+                foreach (var region in transferredRegions)
+                {
+                    if (region != null)
+                        CulturalInertiaClaims.OnConquest(region, receivingNation);
                 }
             }
 

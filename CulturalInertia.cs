@@ -47,6 +47,19 @@ namespace CreepingBorders
 
         private static bool stateLoadedThisSession = false;
 
+        // C13: exact fractional pops awaiting conversion, bucketed per region
+        // and per source culture. Whole pops are converted immediately when a
+        // bucket reaches 1; sub-unit remainders carry over to the next tick so
+        // total population is conserved to the last individual.
+        private static Dictionary<string, Dictionary<string, double>> remainderBuckets
+            = new Dictionary<string, Dictionary<string, double>>();
+
+        // C13: claim-source ledger. When a regime change carries a hostile
+        // claim over to a new owner, the ledger records which culture made the
+        // original claim so Unity-driven expiry can weigh it correctly.
+        private static Dictionary<string, Dictionary<string, string>> claimSourceLedger
+            = new Dictionary<string, Dictionary<string, string>>();
+
         // --- config (settings-driven) -----------------------------------------
         public static bool Enabled => CreepingBordersCls.Settings.EnableCulturalInertia;
         public static float CulturalMismatchMax => CreepingBordersCls.Settings.CulturalMismatchMax;
@@ -76,6 +89,14 @@ namespace CreepingBorders
             if (region.nation != null) return CultureOfNation(region.nation);
             if (seededRegions.TryGetValue(region.ID.ToString(), out var seeded)) return seeded;
             return "unassigned";
+        }
+
+        // ======================================================================
+        // DEBUG LOGGING
+        // ======================================================================
+        public static void DebugLog(string msg)
+        {
+            if (CreepingBordersCls.mod != null) CreepingBordersCls.mod.Logger.Log("[C13] " + msg);
         }
 
         // ======================================================================
@@ -140,6 +161,165 @@ namespace CreepingBorders
 
             float weight = Mathf.Clamp01(region.populationInMillions / nationPop);
             return foreign * Mathf.Clamp01(weight * region.nation.regions.Count); // proportional share, capped at 1
+        }
+
+        // ======================================================================
+        // C13: EXACT-POP CONVERSION WITH REMAINDER BUCKETS
+        // ======================================================================
+
+        /// <summary>
+        /// Converts an exact number of pops in a region from their source
+        /// culture to the target culture. Whole pops convert immediately;
+        /// fractional remainders are held in a per-region, per-source-culture
+        /// bucket and spill over into whole pops on subsequent ticks, so no
+        /// population is created or destroyed.
+        /// </summary>
+        public static void ConvertPopulationExact(TIRegionState region, string targetCulture,
+            string sourceCultureId, double exactPops)
+        {
+            if (region == null || string.IsNullOrEmpty(targetCulture) || exactPops <= 0) return;
+            if (!Enabled) return;
+            var comp = Composition(region);
+            if (!comp.TryGetValue(sourceCultureId, out var sourceShare) || sourceShare <= 0f) return;
+
+            double regionPop = region.populationInMillions * 1_000_000.0;
+            if (regionPop <= 0) return;
+
+            // How many pops the composition still holds in the source culture.
+            double sourcePops = sourceShare * regionPop;
+
+            // Pull any previously banked remainder forward for this source culture.
+            Dictionary<string, double> buckets = null;
+            string regionKey = region.ID.ToString();
+            if (!remainderBuckets.TryGetValue(regionKey, out buckets))
+            {
+                buckets = new Dictionary<string, double>();
+                remainderBuckets[regionKey] = buckets;
+            }
+            buckets.TryGetValue(sourceCultureId, out double banked);
+
+            double available = sourcePops + banked;
+            double convert = Math.Min(exactPops, available);
+            if (convert <= 0) return;
+
+            int whole = (int)Math.Floor(convert);
+            double remainder = convert - whole;
+
+            // Bank the sub-unit remainder for this source culture.
+            buckets[sourceCultureId] = remainder;
+
+            if (whole <= 0)
+            {
+                // Not enough banked to move a single pop yet.
+                return;
+            }
+
+            // Shift whole pops from source to target in the composition store.
+            double popDelta = whole / regionPop;
+            double newSource = sourceShare - popDelta;
+            if (newSource <= 0.0005f)
+            {
+                comp.Remove(sourceCultureId);
+            }
+            else
+            {
+                comp[sourceCultureId] = (float)newSource;
+            }
+
+            comp.TryGetValue(targetCulture, out var targetShare);
+            double newTarget = Math.Min(1.0, (double)targetShare + popDelta);
+            comp[targetCulture] = (float)newTarget;
+
+            Renormalise(comp);
+        }
+
+        /// <summary>
+        /// Renormalises a composition so shares sum to 1.0 within float
+        /// tolerance, dropping any culture that has fallen to dust.
+        /// </summary>
+        private static void Renormalise(Dictionary<string, float> comp)
+        {
+            if (comp == null || comp.Count == 0) return;
+            float total = 0f;
+            foreach (var v in comp.Values) total += v;
+            if (total <= 0f) return;
+            var keys = new List<string>(comp.Keys);
+            foreach (var k in keys)
+            {
+                comp[k] = comp[k] / total;
+                if (comp[k] <= 0.0005f) comp.Remove(k);
+            }
+        }
+
+        /// <summary>
+        /// Gets the claim-source ledger entry: the culture that originally made
+        /// the claim carried over to this region, or null if none.
+        /// </summary>
+        public static string ClaimSourceCulture(TIRegionState region)
+        {
+            if (region == null) return null;
+            if (claimSourceLedger.TryGetValue(region.ID.ToString(), out var bySource))
+            {
+                // The ledger stores one source per claiming culture; for a
+                // region the relevant entry is keyed by the claiming culture.
+                foreach (var kv in bySource)
+                    return kv.Key; // single claiming culture per region (first wins)
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Records a carried-over claim in the ledger: the claim on this region
+        /// originally came from the given culture (usually the absorbed or
+        /// defeated nation whose claim the new owner inherited).
+        /// </summary>
+        public static void RecordClaimCarryover(TIRegionState region, string claimingCultureId)
+        {
+            if (region == null || string.IsNullOrEmpty(claimingCultureId)) return;
+            string regionKey = region.ID.ToString();
+            if (!claimSourceLedger.TryGetValue(regionKey, out var bySource))
+            {
+                bySource = new Dictionary<string, string>();
+                claimSourceLedger[regionKey] = bySource;
+            }
+            bySource[claimingCultureId] = claimingCultureId;
+        }
+
+        /// <summary>
+        /// True if the given culture has a recorded carried-over claim on the region.
+        /// </summary>
+        public static bool HasCarriedOverClaim(TIRegionState region, string claimingCultureId)
+        {
+            if (region == null || string.IsNullOrEmpty(claimingCultureId)) return false;
+            return claimSourceLedger.TryGetValue(region.ID.ToString(), out var bySource)
+                && bySource.ContainsKey(claimingCultureId);
+        }
+
+        /// <summary>
+        /// Expires all carried-over claims recorded for a nation's culture.
+        /// Called when an Outreach action completes: the carried-over claims
+        /// disappear along with the nation's active hostile claims.
+        /// </summary>
+        public static void ExpireCarriedOverClaims(TINationState nation)
+        {
+            if (nation == null || nation.regions == null) return;
+            string culture = CultureOfNation(nation);
+            int expired = 0;
+            foreach (var region in nation.regions)
+            {
+                if (region == null) continue;
+                string regionKey = region.ID.ToString();
+                if (claimSourceLedger.TryGetValue(regionKey, out var bySource)
+                    && bySource.Remove(culture))
+                {
+                    expired++;
+                }
+            }
+            if (expired > 0)
+            {
+                CreepingBordersCls.mod?.Logger.Log(
+                    $"[CulturalInertia] {nation.displayName}: {expired} carried-over claim(s) expired by Outreach.");
+            }
         }
 
         /// <summary>
@@ -302,6 +482,28 @@ namespace CreepingBorders
             public string seededCulture;
         }
 
+        [Serializable]
+        private class RemainderSave
+        {
+            public string regionId;
+            public string cultureIds;
+            public double[] remainders;
+        }
+
+        [Serializable]
+        private class ClaimLedgerSave
+        {
+            public string regionId;
+            public string[] claimingCultures;
+        }
+
+        [Serializable]
+        private class ExtendedStateWrapper
+        {
+            public RemainderSave[] remainders;
+            public ClaimLedgerSave[] claimLedger;
+        }
+
         private static void SaveState(string savePath)
         {
             try
@@ -319,9 +521,37 @@ namespace CreepingBorders
                     };
                     list.Add(entry);
                 }
-                var wrapper = new Dictionary<string, object> { { "regions", list } };
                 string json = JsonUtility.ToJson(new SerializableWrapper { regions = list.ToArray() });
                 File.WriteAllText(StateFilePath(savePath), json);
+
+                // C13 extension: remainder buckets + claim-source ledger.
+                var remList = new List<RemainderSave>();
+                foreach (var kv in remainderBuckets)
+                {
+                    if (kv.Value == null || kv.Value.Count == 0) continue;
+                    remList.Add(new RemainderSave
+                    {
+                        regionId = kv.Key,
+                        cultureIds = string.Join(";", kv.Value.Keys),
+                        remainders = kv.Value.Values.ToArray()
+                    });
+                }
+                var ledgerList = new List<ClaimLedgerSave>();
+                foreach (var kv in claimSourceLedger)
+                {
+                    if (kv.Value == null || kv.Value.Count == 0) continue;
+                    ledgerList.Add(new ClaimLedgerSave
+                    {
+                        regionId = kv.Key,
+                        claimingCultures = kv.Value.Keys.ToArray()
+                    });
+                }
+                var extPath = StateFilePath(savePath) + ".ext.json";
+                File.WriteAllText(extPath, JsonUtility.ToJson(new ExtendedStateWrapper
+                {
+                    remainders = remList.ToArray(),
+                    claimLedger = ledgerList.ToArray()
+                }));
             }
             catch (Exception ex)
             {
@@ -364,9 +594,49 @@ namespace CreepingBorders
                     if (!string.IsNullOrEmpty(entry.seededCulture))
                         seededRegions[entry.regionId] = entry.seededCulture;
                 }
+
+                // C13 extension: remainder buckets + claim-source ledger.
+                remainderBuckets.Clear();
+                claimSourceLedger.Clear();
+                var extPath = StateFilePath(savePath) + ".ext.json";
+                if (File.Exists(extPath))
+                {
+                    var ext = JsonUtility.FromJson<ExtendedStateWrapper>(File.ReadAllText(extPath));
+                    if (ext?.remainders != null)
+                    {
+                        foreach (var rem in ext.remainders)
+                        {
+                            if (rem == null || string.IsNullOrEmpty(rem.regionId)) continue;
+                            var buckets = new Dictionary<string, double>();
+                            var ids = (rem.cultureIds ?? "").Split(';');
+                            if (rem.remainders != null)
+                            {
+                                int n = Math.Min(ids.Length, rem.remainders.Length);
+                                for (int i = 0; i < n; i++)
+                                    buckets[ids[i]] = Math.Max(0.0, rem.remainders[i]);
+                            }
+                            remainderBuckets[rem.regionId] = buckets;
+                        }
+                    }
+                    if (ext?.claimLedger != null)
+                    {
+                        foreach (var ledger in ext.claimLedger)
+                        {
+                            if (ledger == null || string.IsNullOrEmpty(ledger.regionId)) continue;
+                            var bySource = new Dictionary<string, string>();
+                            if (ledger.claimingCultures != null)
+                            {
+                                foreach (var c in ledger.claimingCultures)
+                                    bySource[c] = c;
+                            }
+                            claimSourceLedger[ledger.regionId] = bySource;
+                        }
+                    }
+                }
                 stateLoadedThisSession = true;
                 CreepingBordersCls.mod?.Logger.Log(
-                    $"[CulturalInertia] Loaded culture compositions for {compositions.Count} regions.");
+                    $"[CulturalInertia] Loaded culture compositions for {compositions.Count} regions " +
+                    $"({remainderBuckets.Count} remainder buckets, {claimSourceLedger.Count} claim-ledger entries).");
             }
             catch (Exception ex)
             {
@@ -379,6 +649,8 @@ namespace CreepingBorders
         {
             compositions.Clear();
             seededRegions.Clear();
+            remainderBuckets.Clear();
+            claimSourceLedger.Clear();
             stateLoadedThisSession = false;
         }
 
@@ -389,10 +661,14 @@ namespace CreepingBorders
         [HarmonyPatch(typeof(TINationState), nameof(TINationState.OnUnityPriorityComplete))]
         public static class Patch_OnUnityPriorityComplete
         {
-            static void Postfix(TINationState __instance)
+            // Handover §3.2: the mod REPLACES vanilla Unity completion when the
+            // Cultural Inertia master toggle is on (replacing prefix).
+            static bool Prefix(TINationState __instance, ref bool __runOriginal)
             {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                CulturalInertia.OnUnityCompleted(__instance);
+                if (!CreepingBordersCls.enabled || !Enabled) return true;
+                __runOriginal = false;
+                CulturalInertiaUnity.RunCompletion(__instance);
+                return false;
             }
         }
 

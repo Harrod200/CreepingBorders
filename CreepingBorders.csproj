@@ -86,6 +86,10 @@
     <Compile Include="CreepingBordersCls.cs" />
     <Compile Include="PolygonalRegionConnectivityManager.cs" />
     <Compile Include="CulturalInertia.cs" />
+    <Compile Include="CulturalInertiaUnity.cs" />
+    <Compile Include="CulturalInertiaClaims.cs" />
+    <Compile Include="CulturalInertiaEconomy.cs" />
+    <Compile Include="CulturalInertiaAI.cs" />
     <Compile Include="GeographicPolygonMath.cs" />
     <Compile Include="TestDistanceLayer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
