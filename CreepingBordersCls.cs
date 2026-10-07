@@ -2653,6 +2653,11 @@ namespace CreepingBorders
 
         public override bool Allowed(TINationState nation)
         {
+            // With Cultural Inertia enabled, claim conversion is handled
+            // organically by the C13 claims engine — the policy option is
+            // hidden and disabled so it never appears in any nation's list.
+            if (CulturalInertia.Enabled) return false;
+
             if (CreepingBordersCls.Settings.EnableDebugLogging)
             {
                 CreepingBordersCls.mod.Logger.Log($"[LegitimiseClaim] Allowed() called for nation={nation?.displayName ?? "null"}");
