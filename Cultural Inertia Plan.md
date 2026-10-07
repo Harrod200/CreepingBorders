@@ -46,6 +46,14 @@ A region that is **occupied** (under `CheckAndTriggerOccupation`-style occupatio
 
 3. **Non-owner population weighting.** Any calculation that **benefits from population count** (defensive/offensive budget splits by population weight, Outreach cost basis, absorption/seed sizing) counts the **non-nation cultural populace at ×0.3** — foreign inhabitants are worth 30% of owner-culture inhabitants for beneficial effects. Any **detrimental** calculation (cohesion malus scaling, occupation dilution cost, breakaway pressure) counts them at **×1.3** — foreign pop is 30% heavier in penalties. Rationale: culturally foreign populations contribute less to the state's cultural consolidation but amplify unrest and mismatch pressure. All plan formulas that weight by population should be read with these two multipliers applied to the foreign portion.
 
+#### Resolved edge-case decisions (2026-10-07)
+
+1. **Effective population weight is calculated per region, then summed** for nation-level calculus. The mod must therefore track a per-region cultural-economic decomposition — GDP, influence yield, etc. are aggregated from per-region weighted values, not patched as nation-level scalars. This is the core architectural commitment of the weighting system.
+2. **Public-opinion influence income is excluded** from the weighting (item 6 struck from the beneficial list). Influence income reads vanilla `GetPublicOpinionOfFaction` unweighted.
+3. **Minority-rule malus scales continuously** — the 40% gate is not a cliff; the penalty ramps from 0 at 40% owner culture to full `(100% − share) × mismatchMax` at 0%. Low culture should hurt continuously, not step. (Supersedes the earlier "at or above 40% it is zero" wording for the *slope*, not the *ceiling*.)
+4. **Budget-split weighting uses full population; effect magnitude uses ×0.3/×1.3.** The inverse-pop split decides *where* effort goes (unweighted targeting); the ×0.3/×1.3 weighting applies to how *strongly* the effect lands (efficacy). Separated so struggling regions still receive budget priority while foreign-heavy regions convert more slowly.
+5. **Seceded nations seed at 50% owner culture** across all their regions at independence. New nations inherit a plausible base rather than spawning at maximum minority pressure.
+
 #### Affected vanilla population-effect calculus (compiled 2026-10-07, verified against decompile + Reference doc)
 
 The ×0.3 (beneficial) / ×1.3 (detrimental) foreign-populace weighting applies to the following vanilla calculations. Classification is by outcome sign for the acting nation, not by code location:
@@ -56,7 +64,6 @@ The ×0.3 (beneficial) / ×1.3 (detrimental) foreign-populace weighting applies 
 3. **`economyPriorityPerCapitaIncomeChange × population_Millions`** in `OnEconomyPriorityComplete()` (~5164) — GDP gain scales with pop; foreign ×0.3.
 4. **Knowledge priority education gain** (~4871) — scales with `population_Millions/82`; foreign ×0.3.
 5. **Welfare priority inequality reduction** (~4863) — scales with `population_Millions/335`; the effect is beneficial, foreign ×0.3.
-6. **Influence income from public opinion** (~4358) — `population_Millions × GetPublicOpinionOfFaction × 0.5 × (1+PublicOpinionInfluence)`; foreign ×0.3 (a faction holding a culturally foreign CP earns ~30% of its influence from the foreign share).
 7. **`MaxAnnualDirectInvestIPs`** (~4786) — `pop^0.175 × GDP^0.175`; foreign ×0.3.
 8. **Nation research output** (~3083 formula: education × pop × PCGDP curve × democracy curve × cohesion/unrest modifiers) — foreign ×0.3.
 9. **`allowedArmies`** (~3311) — army cap from `population_Millions / minPopulationForAdditionalArmiesPer_millions`; foreign ×0.3 (foreign pops raise fewer home armies).
