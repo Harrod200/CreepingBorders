@@ -38,3 +38,8 @@ Update `/space/creepingborders/project-state.json` pickup line when a session's 
 - Root cause: AIDailyFactionPlanner is a MonoBehaviour that never declares Update() — Unity magic methods aren't real methods on the type. Also would have fired at frame-rate, not daily.
 - Fix: retarget to `AIDailyFactionPlanner.FactionOperations0000` — the once-per-day planning pass, invoked by FactionPeriodicUpdate.OnDaily0000Update (Systems.PeriodicUpdates). FactionOperations(bool) runs 7x/day, so it is NOT a daily hook.
 - Status: FIXED, build green. Full patch-target audit against decomp passed (all remaining targets exist). Awaiting in-game load test.
+
+## Incident 4 — 2026-10-07: Loc audit false positives (vanilla-supplied keys)
+- Symptom: diffing mod `Loc.T` keys against mod Strings.en flagged 14 cohesion-reststate keys as missing.
+- Root cause: those keys are vanilla strings (TI Decompiled/Strings/en/UINation.en); the C13 `CohesionRestStateDetail` replication patch intentionally reuses vanilla keys per Docs/Creeping Borders E2E Verification.md.
+- Resolution: keys removed from mod Strings.en. AUDIT RULE: any key present under `TI Decompiled/Strings/en/*.en` is vanilla-supplied — do not add it to the mod's Strings.en. Only mod-original keys (UI.Region.Tooltip.*, CreepingBorders.*, UI.Notifications.CreepingBorders.*) belong there.

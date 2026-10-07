@@ -2492,6 +2492,55 @@ namespace CreepingBorders
             sb.AppendLine($"{Loc.T("UI.Region.Tooltip.Landmass")}: {landmassTypeStr}");
             sb.AppendLine($"{Loc.T("UI.Region.Tooltip.Contiguity")}: {contiguityStatus}");
 
+            // C13: cultural composition block (values to 3 dp, 31-day trend).
+            if (CulturalInertia.Enabled)
+            {
+                try
+                {
+                    var cultures = CulturalInertiaTrends.CurrentCultures(region);
+                    if (cultures.Count > 0)
+                    {
+                        sb.AppendLine(Loc.T("UI.Region.Tooltip.Cultures"));
+                        foreach (var kv in cultures)
+                        {
+                            string entry;
+                            if (CulturalInertiaTrends.Trend(region, kv.Key, out float current, out float delta)
+                                && Math.Abs(delta) >= 0.0005f)
+                            {
+                                // Vanilla tooltip accent colors (TIUtilities):
+                                // green #85B260, red #B26A60. The color wraps the
+                                // arrow+trend segment of the localized entry.
+                                string color = delta > 0f ? "#85B260" : "#B26A60";
+                                string entryKey = delta > 0f
+                                    ? "UI.Region.Tooltip.CultureEntryGrowth"
+                                    : "UI.Region.Tooltip.CultureEntryDecline";
+                                string raw = Loc.T(entryKey, CulturalInertiaTrends.DisplayName(kv.Key),
+                                    kv.Value.ToString("F3"), Math.Abs(delta).ToString("F3"));
+                                int marker = raw.IndexOf(kv.Value.ToString("F3"), StringComparison.Ordinal);
+                                entry = marker >= 0
+                                    ? raw.Substring(0, marker + kv.Value.ToString("F3").Length)
+                                      + $"<color={color}>" + raw.Substring(marker + kv.Value.ToString("F3").Length)
+                                      + $"</color>"
+                                    : raw;
+                            }
+                            else
+                            {
+                                // No trend yet (fresh sample < 2 points) or flat:
+                                // plain entry, no arrow, no color.
+                                entry = Loc.T("UI.Region.Tooltip.CultureEntry",
+                                    CulturalInertiaTrends.DisplayName(kv.Key), kv.Value.ToString("F3"));
+                            }
+                            sb.AppendLine(entry);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CreepingBordersCls.mod?.Logger.Error(
+                        $"[CulturalInertia] Tooltip culture block error: {ex.Message}");
+                }
+            }
+
             __result = sb.ToString();
         }
     }

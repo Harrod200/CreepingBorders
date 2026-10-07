@@ -90,6 +90,7 @@
     <Compile Include="CulturalInertiaClaims.cs" />
     <Compile Include="CulturalInertiaEconomy.cs" />
     <Compile Include="CulturalInertiaAI.cs" />
+    <Compile Include="CulturalInertiaTrends.cs" />
     <Compile Include="GeographicPolygonMath.cs" />
     <Compile Include="TestDistanceLayer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -97,7 +98,7 @@
   <ItemGroup>
     <None Include="Deploy.bat" />
     <None Include="modinfo.json" />
-    <None Include="Strings.en" />
+    <None Include="Strings.en" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Assistance\" />

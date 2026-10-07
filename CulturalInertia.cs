@@ -651,6 +651,7 @@ namespace CreepingBorders
             seededRegions.Clear();
             remainderBuckets.Clear();
             claimSourceLedger.Clear();
+            CulturalInertiaTrends.ResetInMemoryState();
             stateLoadedThisSession = false;
         }
 
