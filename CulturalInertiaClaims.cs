@@ -74,7 +74,6 @@ namespace CreepingBorders
                 if (region == null || region.nation == nation) continue;
                 if (nation.hostileClaims.Contains(region)) continue;
                 if (IsResearchGrantedClaim(region, nation)) continue; // immune
-                if (CulturalInertia.IsLegitimised(nation, region)) continue; // legitimised: acts like a researched claim
                 float? share = CultureShare(region, nation);
                 if (share.HasValue && share.Value < demote)
                 {

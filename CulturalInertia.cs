@@ -60,13 +60,6 @@ namespace CreepingBorders
         private static Dictionary<string, Dictionary<string, string>> claimSourceLedger
             = new Dictionary<string, Dictionary<string, string>>();
 
-        // C13: claims deliberately legitimised (via the Legitimise Claim policy
-        // or vanilla's no-seizure claim path). Legitimised claims act like
-        // research-granted claims: permanently friendly, never re-flipped to
-        // hostile by the hysteresis pass. Keyed "<claimantNationId>:<regionId>"
-        // and persisted alongside the vanilla save.
-        private static readonly HashSet<string> legitimisedClaims = new HashSet<string>();
-
         // --- config (settings-driven) -----------------------------------------
         public static bool Enabled => CreepingBordersCls.Settings.EnableCulturalInertia;
         public static float CulturalMismatchMax => CreepingBordersCls.Settings.CulturalMismatchMax;
@@ -509,32 +502,6 @@ namespace CreepingBorders
         {
             public RemainderSave[] remainders;
             public ClaimLedgerSave[] claimLedger;
-            public string[] legitimised;
-        }
-
-        public static string LegitimisedKey(TINationState claimant, TIRegionState region)
-        {
-            if (claimant == null || region == null) return null;
-            return claimant.ID.ToString() + ":" + region.ID.ToString();
-        }
-
-        /// <summary>
-        /// True if the nation has legitimised its claim on the region: the
-        /// claim now behaves like a research-granted claim and never flips
-        /// back to hostile.
-        /// </summary>
-        public static bool IsLegitimised(TINationState claimant, TIRegionState region)
-        {
-            string key = LegitimisedKey(claimant, region);
-            return key != null && legitimisedClaims.Contains(key);
-        }
-
-        public static void MarkLegitimised(TINationState claimant, TIRegionState region)
-        {
-            string key = LegitimisedKey(claimant, region);
-            if (key != null && legitimisedClaims.Add(key) && CreepingBordersCls.Settings.EnableDebugLogging)
-                CreepingBordersCls.mod?.Logger.Log(
-                    $"[CulturalInertia] {claimant.displayName} legitimised claim on {region.displayName} (permanent friendly claim)");
         }
 
         private static void SaveState(string savePath)
@@ -583,8 +550,7 @@ namespace CreepingBorders
                 File.WriteAllText(extPath, JsonUtility.ToJson(new ExtendedStateWrapper
                 {
                     remainders = remList.ToArray(),
-                    claimLedger = ledgerList.ToArray(),
-                    legitimised = legitimisedClaims.ToArray()
+                    claimLedger = ledgerList.ToArray()
                 }));
             }
             catch (Exception ex)
@@ -609,6 +575,7 @@ namespace CreepingBorders
                 string path = StateFilePath(savePath);
                 if (!File.Exists(path))
                 {
+                    stateLoadedThisSession = true;
                     return; // Fresh game: compositions will be seeded lazily.
                 }
                 var wrapper = JsonUtility.FromJson<SerializableWrapper>(File.ReadAllText(path));
@@ -665,11 +632,6 @@ namespace CreepingBorders
                             claimSourceLedger[ledger.regionId] = bySource;
                         }
                     }
-                    if (ext?.legitimised != null)
-                    {
-                        foreach (var k in ext.legitimised)
-                            if (!string.IsNullOrEmpty(k)) legitimisedClaims.Add(k);
-                    }
                 }
                 stateLoadedThisSession = true;
                 CreepingBordersCls.mod?.Logger.Log(
@@ -689,7 +651,6 @@ namespace CreepingBorders
             seededRegions.Clear();
             remainderBuckets.Clear();
             claimSourceLedger.Clear();
-            legitimisedClaims.Clear();
             stateLoadedThisSession = false;
         }
 
@@ -737,22 +698,6 @@ namespace CreepingBorders
                 {
                     // Never break vanilla cohesion computation.
                 }
-            }
-        }
-
-        [HarmonyPatch(typeof(TINationState), nameof(TINationState.RemoveHostileClaim))]
-        public static class Patch_RemoveHostileClaim
-        {
-            // Any deliberate conversion of a hostile claim to a friendly one
-            // (the mod's Legitimise Claim policy, vanilla's no-seizure claim
-            // path) marks the claim as legitimised: from then on it behaves
-            // like a research-granted claim and the C13 hysteresis pass never
-            // flips it back to hostile.
-            static void Postfix(TINationState __instance, TIRegionState region)
-            {
-                if (!CreepingBordersCls.enabled || !Enabled) return;
-                try { CulturalInertia.MarkLegitimised(__instance, region); }
-                catch (Exception) { }
             }
         }
 
