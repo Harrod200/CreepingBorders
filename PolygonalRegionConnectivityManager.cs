@@ -40,8 +40,15 @@ namespace CreepingBorders
         // the C1/C2 bbox filter (3X): FC within 1X, PC within 3X. Flagged
         // for confirmation with the owner.
         // ---------------------------------------------------------------
-        /// <summary>X: the option claim distance (km).</summary>
-        public const float X_km = 300f;
+        /// <summary>X: the option claim distance (km), user-adjustable via UMM slider.</summary>
+        public static float X_km
+        {
+            get
+            {
+                var s = CreepingBordersCls.Settings;
+                return (s != null && s.ClaimDistanceKm > 0f) ? s.ClaimDistanceKm : 300f;
+            }
+        }
 
         /// <summary>Full-connectivity distance threshold, in multiples of X.</summary>
         public const float FullDistanceX = 1f;

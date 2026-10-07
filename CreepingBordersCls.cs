@@ -26,6 +26,8 @@ namespace CreepingBorders
     public class CreepingBordersSettings : UnityModManager.ModSettings
     {
         public bool EnableBorderExpansion = true;
+        /// <summary>X: the option claim distance (km). Full gate = X, Partial gate = 3X. 0-2000, 50 km increments.</summary>
+        public float ClaimDistanceKm = 300f;
         public bool NoHostileClaims = false;
         public bool NoPopulationMalus = false;
         public float CohesionRestStateBaseValue = 16f;
@@ -140,6 +142,8 @@ namespace CreepingBorders
             return true;
         }
 
+        private static float lastClaimDistanceKm = 300f;
+
         private static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             var settings = CreepingBordersCls.Settings;
@@ -154,6 +158,19 @@ namespace CreepingBorders
             GUILayout.Label("<b>Border Expansion</b>", emptyOptions);
             settings.EnableBorderExpansion = GUILayout.Toggle(settings.EnableBorderExpansion, "Enable Border Expansion", emptyOptions);
             GUILayout.Label("Automatically expands nation borders by claiming adjacent unclaimed regions when control of a region changes", emptyOptions);
+
+            GUILayout.Space(4f);
+            GUILayout.Label("Claim Distance (X): " + settings.ClaimDistanceKm.ToString("F0") + " km", emptyOptions);
+            settings.ClaimDistanceKm = GUILayout.HorizontalSlider(settings.ClaimDistanceKm, 0f, 2000f, emptyOptions);
+            // Round to nearest 50 km
+            settings.ClaimDistanceKm = Mathf.Round(settings.ClaimDistanceKm / 50f) * 50f;
+            if (settings.ClaimDistanceKm < 50f) settings.ClaimDistanceKm = 50f;
+            GUILayout.Label("Distance bridging gates: Full contiguity within X km, Partial within 3X km. Distance bridging is disabled at X = 0", emptyOptions);
+            if (settings.ClaimDistanceKm != lastClaimDistanceKm)
+            {
+                lastClaimDistanceKm = settings.ClaimDistanceKm;
+                PolygonalRegionConnectivityManager.Invalidate();
+            }
 
             // ====================================================================
             // CLAIM BEHAVIOR
@@ -1281,7 +1298,7 @@ namespace CreepingBorders
             // A next hop must actually be reachable: within the Full gate (X) of this region.
             // Without this filter, the capital (distance-to-capital = 0) always wins the ranking
             // even when it is hundreds of km away and cannot serve as a hop (Incident 8).
-            const float FULL_GATE_KM = 300f; // must match CONTIGUITY_DISTANCE_THRESHOLD_KM
+            float FULL_GATE_KM = PolygonalRegionConnectivityManager.X_km; // Full gate = X
 
             foreach (TIRegionState contiguousRegion in contiguousRegions)
             {
