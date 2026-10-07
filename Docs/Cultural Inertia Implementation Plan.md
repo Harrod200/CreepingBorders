@@ -15,6 +15,8 @@ CulturalInertiaEconomy.cs — NEW: effective-population weighting, minority malu
 CulturalInertiaAI.cs      — NEW: stance AI (§10.2), Outreach AI (§10.3)
 ```
 
+**Global gate:** every hook in every module begins with `if (!S.EnableCulturalInertia) return;` (prefix hooks restore `__runOriginal = true`). Master UMM toggle `EnableCulturalInertia`, default ON; OFF returns all behaviour to vanilla.
+
 ## 1. Provenance (C13a) — `CulturalInertiaClaims.cs`
 
 ```csharp
@@ -96,6 +98,7 @@ Patch point: `TINationState.OnUnityPriorityComplete` (ref md 23789; existing pat
 [HarmonyPatch(typeof(TINationState), nameof(OnUnityPriorityComplete))]
 static void Prefix(TINationState __instance, out bool __runOriginal) {
     __runOriginal = false;                          // we fully own completion
+    if (!S.EnableCulturalInertia) { __runOriginal = true; return; }   // master toggle: vanilla path
     var n = __instance;
 
     // --- stance --------------------------------------------------------
@@ -251,6 +254,7 @@ the 3rd synthetic policy key (PolicyManager patch pattern at
 | `BeneficialForeignWeight` | 0.3 | §6 effective pop (beneficial calcs) |
 | `DetrimentForeignWeight` | 1.3 | §6 effective pop (detriment calcs) |
 | `SnapToZero` | 0.0005 | §7 remainder bucket |
+| `EnableCulturalInertia` (master) | true | Master toggle — OFF disables every culture mechanic (composition model, Unity budgets, Outreach, stance policy, claim hysteresis, occupation culture rules, ×0.3/×1.3 weighting, minority malus, AI stance/Outreach layers); claims and Unity then behave exactly as vanilla. Implement as one early-return gate at the top of every mod hook |
 | `CulturalMismatchMax` | (existing) | §6 malus scale |
 | `AiInfluenceBuffer` | 15 | §10.2 stance AI influence threshold |
 | `AiOutreachCooldownDays` | 30 | §10.3 Outreach AI cooldown |
