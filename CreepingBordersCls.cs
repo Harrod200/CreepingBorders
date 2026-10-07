@@ -427,27 +427,21 @@ namespace CreepingBorders
                 return new List<TIRegionState>();
             }
 
-            // Build HashSet of claimed regions for O(1) lookup
-            var claimedSet = new HashSet<TIRegionState>(nation.claims);
+            // Collect annexable regions: fully contiguous with the capital, per the
+            // PolygonalRegionConnectivityManager. The old dual criterion (BFS-contiguous
+            // OR any island claim) is replaced: island claims qualify only when the
+            // manager grants them Full via distance bridging (<= FullDistanceX). Partial
+            // regions - including politically severed ones capped by the Incident 6d
+            // physical-reachability rule - are NOT annexable.
+            var connectivity = PolygonalRegionConnectivityManager.Get(nation);
+            var annexableRegions = new List<TIRegionState>(nation.claims.Count);
 
-            // Find all regions contiguous with the capital using full adjacency BFS
-            var contiguousWithCapital = BFSTraversal(nation.capital, (neighbor, n) =>
-            {
-                return neighbor.IsAdjacent(neighbor, true) && claimedSet.Contains(neighbor);
-            });
-
-            // Collect annexable regions
-            var annexableRegions = new List<TIRegionState>(contiguousWithCapital.Count + 10); // Pre-size for efficiency
-
-            // Check all claimed regions for annexability
             foreach (TIRegionState claimedRegion in nation.claims)
             {
                 if (claimedRegion == null || claimedRegion.nation == nation)
                     continue;
 
-                // Criterion 1: Contiguous with capital OR Criterion 2: Island landmass
-                if (contiguousWithCapital.Contains(claimedRegion) || 
-                    claimedRegion.GetLandmassType() == LandmassType.Island)
+                if (connectivity.FullyContiguousRegions.Contains(claimedRegion))
                 {
                     annexableRegions.Add(claimedRegion);
                 }

@@ -102,3 +102,11 @@ distance-based contiguity for that region is capped at Partial. Geography permit
 connection; politics breaks it; Partial is the ceiling.
 **Fix:** ownership-agnostic BFS from capital over AdjacentRegions(false) precomputed
 as physicallyReachable; Pass B caps Full->Partial for such regions.
+
+## Incident 7 (2026-10-07) — claim propagation unified on contiguity
+Old annexability rule: BFS-contiguous OR any island claim (blanket island
+exemption). New rule: claim is annexable iff the PolygonalRegionConnectivityManager
+grants it FULL contiguity with the capital. Consequences: island claims qualify
+only via distance bridging (<= FullDistanceX from a Full region); Partial regions
+(incl. Incident 6d capped) are never annexable. Legacy BFSTraversal call removed.
+LandmassType still used for: Pass B continent gate, navalFreedom/blockade tooltips.
