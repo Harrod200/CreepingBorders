@@ -50,8 +50,8 @@ Patch points: `TransferRegionsControlTo` (ref md 23980; existing patch
 static void OnRegionConverted(TIRegionState r, TINationState from, TINationState to) {
     // Rule 1 — research-granted non-hostile claim → 50% floor bump
     if (IsResearchGrantedClaim(to, r) && !to.hostileClaims.Contains(r)
-        && Composition(r, to.cultureId) < 0.50f)
-        SetCulture(r, to.cultureId, 0.50f);              // bump UP only
+        && Composition(r, to.cultureId) < S.ResearchClaimConversionFloor)
+        SetCulture(r, to.cultureId, S.ResearchClaimConversionFloor);  // bump UP only
 
     // Rule 2 — unclaimed conquest → 0% seed (existing rev 8 rule, unchanged)
     // Rule 3 — unification of same-culture regions: composition carries over
@@ -59,7 +59,7 @@ static void OnRegionConverted(TIRegionState r, TINationState from, TINationState
 
     // Rule 4 — seceded/breakaway nations seed at 50% of parent owner culture
     // Patch: TIRegionState secession paths route through TransferRegionsControlTo;
-    //        detect `newNation.breakawayParent == from` and apply the same 50% floor
+    //        detect `newNation.breakawayParent == from` and apply the S.SecessionCultureFloor floor
     //        against from's culture for every region in the breakaway.
 
     // Rule 5 — occupation release: when region returns to `from` (liberation),
@@ -80,8 +80,8 @@ static void EvaluateBand(TINationState n, TIRegionState r) {
     float share = Composition(r, n.cultureId);
     bool currentlyHostile = n.hostileClaims.Contains(r);
     if (IsResearchGrantedClaim(n, r)) return;   // immune: never demotes, never flips
-    if (!currentlyHostile && share < 0.25f) n.SetClaim(r, hostile path);   // demote
-    if (currentlyHostile  && share >= 0.30f) n.RemoveHostileClaim(r);      // promote
+    if (!currentlyHostile && share < S.HostileDemoteThreshold) n.SetClaim(r, hostile path);   // demote
+    if (currentlyHostile  && share >= S.HostilePromoteThreshold) n.RemoveHostileClaim(r);      // promote
     // 5% gap = hysteresis; prevents flip-flop at boundary.
 }
 ```
@@ -101,8 +101,8 @@ static void Prefix(TINationState __instance, out bool __runOriginal) {
     bool defensive = GetStancePolicy(n) == Stance.Defensive;   // 3rd synthetic policy key
 
     // --- budgets -------------------------------------------------------
-    float ownBudget   = defensive ? 1.00f : 0.50f;   // rolled-in defensive budget
-    float unownedBudget = defensive ? 0.00f : 0.50f;
+    float ownBudget   = defensive ? 2*S.OwnedOffensiveBudget : S.OwnedDefensiveBudget;
+    float unownedBudget = defensive ? 0.00f : S.UnownedOffensiveBudget;
 
     // --- owned: inverse-pop split of ownBudget across owned regions ----
     var owned = n.regions;
@@ -125,7 +125,7 @@ static void Prefix(TINationState __instance, out bool __runOriginal) {
                       + targets.Where(Neutral).Sum(Pop)*0.5f;
 
     // --- influence payment: all-or-nothing ------------------------------
-    float cost = affectedPop / 100f;                   // 1 inf per 100M, no cap
+    float cost = affectedPop * S.InfluenceCostPer100M / 100f;  // no cap
     var payers = PayerFactions(n);                     // CP owners, proportional split
     foreach (var f in payers) if (!f.CanAffordInfluence(cost*f.share)) {
         // failed payment → base offensive owned nudge ONLY (already granted above at 0.5)
@@ -150,7 +150,7 @@ Note: unowned regions in the same nation as an ally are null-weighted via
 Existing Outreach patch in `CreepingBordersCls.cs` (~2513/2625 gates). Changes:
 
 ```csharp
-static OutreachCost(TIRegionState target) => target.population / 100f;   // same formula as broad
+static OutreachCost(TIRegionState target) => target.population * S.InfluenceCostPer100M / 100f;
 // adjacency requirement: target must be adjacent to an owned region OR within
 // the island-range threshold (same predicate as broad target set).
 // failed payment → degrade to defensive-equivalent for that completion:
@@ -192,8 +192,8 @@ static float MinorityRuleMalus(TINationState n) {
     float m = 0;
     foreach (var r in n.regions) {
         float share = Composition(r, n.cultureId);
-        if (share < 0.40f)                                   // scaled penalty (ruling 5)
-            m += (0.40f - share) * CulturalMismatchMax * ScalePenalty(r);
+        if (share < S.MinorityRuleThreshold)                                   // scaled penalty (ruling 5)
+            m += (S.MinorityRuleThreshold - share) * S.CulturalMismatchMax * ScalePenalty(r);
     }
     return m;
 }
@@ -212,7 +212,7 @@ struct Composition {
     Dictionary<string,float> shares;   // full-precision floats
     float remainder;                   // slop bucket for below-snap deltas
 }
-const float SNAP_TO_ZERO = 0.0005f;    // retuned from 0.005 (ruling 3: finer)
+const float SNAP_TO_ZERO = S.SnapToZero;   // default 0.0005 (ruling 3: finer)
 static void NudgeComposition(TIRegionState r, string cultureId, float delta) {
     var c = Store(r);
     if (delta > 0 && delta < SNAP_TO_ZERO) { c.remainder += delta; return; }
@@ -227,9 +227,29 @@ Save/load: extend existing `SaveAllGameStates`/`LoadAllGameStates` patches
 
 ## 8. Persistence & settings
 
-- New settings keys: `StancePolicy (offensive|defensive)`, retain
-  `CulturalMismatchMax`. Stance is set per-nation via the 3rd synthetic policy
-  key (PolicyManager patch pattern at `CreepingBordersCls.cs:2474`).
+**Rule: every balance number in this plan is a mod option.** No magic numbers in
+code — each constant below lives in `CreepingBordersCls.Settings` (UMM settings
+menu) with the discussed figure as the default. Stance is set per-nation via
+the 3rd synthetic policy key (PolicyManager patch pattern at
+`CreepingBordersCls.cs:2474`).
+
+| Setting | Default | Used in |
+|---|---|---|
+| `StancePolicy` (per-nation policy: offensive/defensive) | offensive | §4, §5 |
+| `OwnedDefensiveBudget` | 0.50 | §4 owned budget (defensive doubles to 1.0) |
+| `OwnedOffensiveBudget` | 0.50 | §4 owned budget |
+| `UnownedOffensiveBudget` | 0.50 | §4 unowned budget |
+| `InfluenceCostPer100M` | 1.0 | §4, §5 cost |
+| `NeutralNationWeight` | 0.5 | §4 ally/rival weighting |
+| `HostileDemoteThreshold` | 0.25 | §3 band |
+| `HostilePromoteThreshold` | 0.30 | §3 band |
+| `ResearchClaimConversionFloor` | 0.50 | §2 bump |
+| `SecessionCultureFloor` | 0.50 | §2 breakaway seed |
+| `MinorityRuleThreshold` | 0.40 | §6 malus onset |
+| `BeneficialForeignWeight` | 0.3 | §6 effective pop (beneficial calcs) |
+| `DetrimentForeignWeight` | 1.3 | §6 effective pop (detriment calcs) |
+| `SnapToZero` | 0.0005 | §7 remainder bucket |
+| `CulturalMismatchMax` | (existing) | §6 malus scale |
 - Claim-source ledger persisted with the same save hook as compositions.
 
 ## 9. Test matrix (from the four session scenarios)
