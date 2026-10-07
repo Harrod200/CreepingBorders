@@ -110,3 +110,11 @@ grants it FULL contiguity with the capital. Consequences: island claims qualify
 only via distance bridging (<= FullDistanceX from a Full region); Partial regions
 (incl. Incident 6d capped) are never annexable. Legacy BFSTraversal call removed.
 LandmassType still used for: Pass B continent gate, navalFreedom/blockade tooltips.
+
+## Incident 8 — Next-hop picker chose unreachable candidates (2026-10-07)
+Symptom: Biak showed "Island Route via Jakarta (1649 km)" instead of its actual
+hop (Ambon, 33.6 km). Root cause: FindClosestContiguousRegion ranked ALL Full
+regions by distance-to-capital, so the capital (0 km from itself) always won
+even when unreachable from the region. Fix: candidate filter now requires
+toSelf <= Full gate (X = 300 km) before homeward ranking. Note: X is defined in
+multiple places; keep them in sync.

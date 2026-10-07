@@ -1278,13 +1278,21 @@ namespace CreepingBorders
             float bestToCapital = float.MaxValue;
             float bestToSelf = float.MaxValue;
 
+            // A next hop must actually be reachable: within the Full gate (X) of this region.
+            // Without this filter, the capital (distance-to-capital = 0) always wins the ranking
+            // even when it is hundreds of km away and cannot serve as a hop (Incident 8).
+            const float FULL_GATE_KM = 300f; // must match CONTIGUITY_DISTANCE_THRESHOLD_KM
+
             foreach (TIRegionState contiguousRegion in contiguousRegions)
             {
                 if (contiguousRegion == null || contiguousRegion == region)
                     continue;
 
-                float toCapital = contiguousRegion.ShortestBorderDistance_km(capital);
                 float toSelf = region.ShortestBorderDistance_km(contiguousRegion);
+                if (toSelf > FULL_GATE_KM)
+                    continue;
+
+                float toCapital = contiguousRegion.ShortestBorderDistance_km(capital);
 
                 if (toCapital < bestToCapital ||
                     (toCapital == bestToCapital && toSelf < bestToSelf))
