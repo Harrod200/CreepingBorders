@@ -31,3 +31,10 @@ Update `/space/creepingborders/project-state.json` pickup line when a session's 
 - Root duplicates removed; root-only docs moved into Docs/ (Build Setup.md, Cultural Inertia Plan.md). Docs copies of E2E Verification and Less Invasive refactor were identical to root.
 - Handover Notes v5 task entry updated: Cultural Inertia rev 8 designed -> rev 9 implemented (see CI Handover Package v2).
 - Efficiency Instructions amended: pickup-path variant documented; Troubleshooting Log referenced in golden rules; /rool-drive/CB path rule generalized.
+- Pushed to GitHub master @ 13d3640 (from be0a902): patch fixes + doc consolidation. Note: GitHub PAT was shared in chat; owner should revoke and rotate it. Push used a transient /tmp clone (deleted after push) — no state parked there.
+
+## 2026-10-07 — Incident 3: Undefined target method — AIDailyFactionPlanner.Update
+- Symptom: `Patch_AIDailyFactionPlanner::Postfix` → "Undefined target method"; PatchAll aborts, mod not loaded.
+- Root cause: AIDailyFactionPlanner is a MonoBehaviour that never declares Update() — Unity magic methods aren't real methods on the type. Also would have fired at frame-rate, not daily.
+- Fix: retarget to `AIDailyFactionPlanner.FactionOperations0000` — the once-per-day planning pass, invoked by FactionPeriodicUpdate.OnDaily0000Update (Systems.PeriodicUpdates). FactionOperations(bool) runs 7x/day, so it is NOT a daily hook.
+- Status: FIXED, build green. Full patch-target audit against decomp passed (all remaining targets exist). Awaiting in-game load test.

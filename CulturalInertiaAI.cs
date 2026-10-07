@@ -91,9 +91,11 @@ namespace CreepingBorders
         }
 
         // ------------------------------------------------------------------
-        // Outreach AI (§10.3, §10.4). Daily postfix on AIDailyFactionPlanner.
-        // ------------------------------------------------------------------
-        [HarmonyPatch(typeof(AIDailyFactionPlanner), "Update")]
+        // Outreach AI (§10.3, §10.4). Daily postfix. NOTE: AIDailyFactionPlanner
+        // is a MonoBehaviour that never declares Update() (Unity magic method,
+        // not patchable). The daily planning entry point is FactionOperations0000,
+        // invoked once per campaign day by FactionPeriodicUpdate.OnDaily0000Update.
+        [HarmonyPatch(typeof(AIDailyFactionPlanner), nameof(AIDailyFactionPlanner.FactionOperations0000))]
         public static class Patch_AIDailyFactionPlanner
         {
             static void Postfix()
