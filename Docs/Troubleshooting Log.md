@@ -118,3 +118,11 @@ regions by distance-to-capital, so the capital (0 km from itself) always won
 even when unreachable from the region. Fix: candidate filter now requires
 toSelf <= Full gate (X = 300 km) before homeward ranking. Note: X is defined in
 multiple places; keep them in sync.
+
+## Incident 9 — Unified X into a single user-adjustable setting (2026-10-07)
+X (claim distance) was duplicated: PolygonalRegionConnectivityManager.X_km const
+(300) for contiguity gates, and CreepingBordersSettings.IslandRangeKm (300,
+UMM slider) for C13 unity island targeting. Both now read from the single
+ClaimDistanceKm slider (0-2000, 50 km increments). Moving the slider calls
+PolygonalRegionConnectivityManager.Invalidate(). IslandRangeKm removed — old
+saves keep the field (harmless); X_km falls back to 300 when Settings is null.

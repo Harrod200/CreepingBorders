@@ -201,7 +201,8 @@ namespace CreepingBorders
                     if (nb != null && seen.Add(nb.ID.ToString())) candidates[nb] = 1f;
 
             // Island range from owned regions (DistanceToRegion_km is cached).
-            float islandKm = settings.IslandRangeKm;
+            // Island range unified with the contiguity X distance (PolygonalRegionConnectivityManager.X_km).
+            float islandKm = CreepingBordersCls.Settings.ClaimDistanceKm;
             if (islandKm > 0f)
             {
                 foreach (var all in GameStateManager.AllRegions())
@@ -382,7 +383,7 @@ namespace CreepingBorders
             if (faction == null || target == null) return false;
             try
             {
-                float islandKm = CreepingBordersCls.Settings.IslandRangeKm;
+                float islandKm = CreepingBordersCls.Settings.ClaimDistanceKm;
                 foreach (var n in GameStateManager.AllNations())
                 {
                     if (n == null || n.executiveFaction != faction) continue;

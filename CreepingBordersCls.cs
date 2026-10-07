@@ -48,7 +48,7 @@ namespace CreepingBorders
         public float InfluenceCostPer100M = 1.0f;
         public float NeutralNationWeight = 0.5f;
         public bool UnityDefaultStanceDefensive = true;
-        public float IslandRangeKm = 300f;
+        // (Island range unified with the contiguity X distance — see PolygonalRegionConnectivityManager.X_km.)
 
         // --- C13 Cultural Inertia: claims ---
         public float HostileDemoteThreshold = 0.25f;
