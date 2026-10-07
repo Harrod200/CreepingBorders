@@ -197,3 +197,19 @@ before shipping.
 7. **Map-data flags** (for the map author, not code): does Norway's polygon intend
    to cover Svalbard? Franz Josef Land missing entirely; Arctic ocean-route
    interaction with the border-distance cache needs a look.
+
+## Appendix: Vanilla unification — implementation map (identified 2026-10-07)
+
+Chain:
+1. **Gate/target list** — `TINationState.eligibleUnifications` (TINationState.cs:6706):
+   - If absorber `inFederation`: other federation members pass `MyClaimOnOtherCapital(x, TemplateManager.global.prohibitCapitalShenanigans, false)`.
+   - Else: any `extant` nation whose `breakawayParent == this` passes unconditionally.
+   - All other candidates must (a) share a land border or be federation-mates, (b) be ideologically close enough (`IdeologicalDistanceTo`), and (c) pass `MyClaimOnOtherCapital(x, prohibitCapitalShenanigans, false)`.
+2. **`MyClaimOnOtherCapital(target, originalCapital, includeHostile)`** (TINationState.cs:6871): if `originalCapital`, reads `target.originalCapital` (falls back to current `capital`); returns true only if the absorber has a **non-hostile** claim on that region (hostile claims don't count unless `includeHostile`). `prohibitCapitalShenanigans` is the global-template toggle for whether the **original** capital (pre-war-destruction) is used. **Verified exact gating** (TINationState.cs:6706–6717):
+   - federation members: same claim check + same `executiveFaction == x.TotalOwningFaction` + `CanImproveRelationsYet` + both `ExecutivePowerConsolidated`.
+   - `breakaways` (children): same executive faction, not at war — **no capital-claim check**.
+   - `breakawayParent` (reabsorb direction): same executive faction, not at war — **no capital-claim check**.
+   - No border or ideological-distance conditions exist in the current code (earlier draft of this note wrongly listed them).
+3. **UI option** — `UnificationOption.cs`: `Allowed` = `ExecutivePowerConsolidated`; `GetPossibleTargets` = `eligibleUnifications`; `OnPassage` calls `TINationState.Unification(actingFaction, joiningNationState)` (breakaway parents reabsorb the child in the opposite direction). AI acceptance via `StratPolicyResponseSelector.ChanceUnification`.
+4. **Unification()** (TINationState.cs:9908) is a thin wrapper → **`AbsorbNation`** (TINationState.cs:9801). AbsorbNation: transfers all regions/CPs via `TransferRegionsControlTo`, fills ownerless absorber CPs from the max-position held CP's faction, inherits nukes/spaceflight/military/federation, grants the absorber 50% of the absorbed nation's accumulated priority investment (capped for program-startup priorities), then deactivates the absorbed nation (renames if same-`natNameKey` merge, e.g. France→EU; handover §unification-rename note applies). Also reachable from narrative `InstantEffect.PrimaryAbsorbsSecondary` / `SecondaryAbsorbsPrimary` (TIEffectsState.cs:3056/3069) and from `AnnexNation`.
+5. **AI** — `AIEvaluators`/`AICouncilorMissionPlanner` use `eligibleUnifications` to plan UnifyCountry-style mission candidates.
