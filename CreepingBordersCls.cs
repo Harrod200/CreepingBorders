@@ -1263,31 +1263,41 @@ namespace CreepingBorders
         }
 
         /// <summary>
-        /// Helper method to find the closest contiguous region to a given region
+        /// Helper method to find the next hop on the island route: the contiguous region
+        /// that makes the most progress TOWARD THE CAPITAL. Ranks candidates by their
+        /// polygon distance to the nation capital (ascending), tie-broken by distance
+        /// to the region itself. Ranking by distance-to-self picks symmetric nearest
+        /// neighbours (e.g. Medan<->Banda Aceh loop) instead of the route home.
         /// </summary>
         private static TIRegionState FindClosestContiguousRegion(TIRegionState region, TINationState nation, HashSet<TIRegionState> contiguousRegions)
         {
-            if (region == null || contiguousRegions == null || contiguousRegions.Count == 0)
+            if (region == null || nation == null || nation.capital == null ||
+                contiguousRegions == null || contiguousRegions.Count == 0)
                 return null;
 
-            TIRegionState closest = null;
-            float minDistance = float.MaxValue;
+            TIRegionState capital = nation.capital;
+            TIRegionState best = null;
+            float bestToCapital = float.MaxValue;
+            float bestToSelf = float.MaxValue;
 
             foreach (TIRegionState contiguousRegion in contiguousRegions)
             {
                 if (contiguousRegion == null || contiguousRegion == region)
                     continue;
 
-                float distance = region.ShortestBorderDistance_km(contiguousRegion);
+                float toCapital = contiguousRegion.ShortestBorderDistance_km(capital);
+                float toSelf = region.ShortestBorderDistance_km(contiguousRegion);
 
-                if (distance < minDistance)
+                if (toCapital < bestToCapital ||
+                    (toCapital == bestToCapital && toSelf < bestToSelf))
                 {
-                    minDistance = distance;
-                    closest = contiguousRegion;
+                    bestToCapital = toCapital;
+                    bestToSelf = toSelf;
+                    best = contiguousRegion;
                 }
             }
 
-            return closest;
+            return best;
         }
 
         /// <summary>

@@ -58,3 +58,14 @@ Update `/space/creepingborders/project-state.json` pickup line when a session's 
 - ShortestBorderDistance_km had its own vertex-to-vertex computation + centroid fallback, diverging from GeographicPolygonMath's edge-to-arc algorithm used by the manager. Per owner ruling: no centroid fallback.
 - Fix: ShortestBorderDistance_km now delegates to GeographicPolygonMath.GetRegionPairDistance (Unknown/Beyond3X → float.MaxValue); PrecomputeAllPairs delegates likewise (appends misses to the shared CSV); removed dead PrecomputedTable/EnsureTableLoaded/PairKey from Cls; InvalidateCache now calls GeographicPolygonMath.ReloadTable.
 - Rule: one algorithm, one cache (GeographicPolygonMath/BorderDistanceCache.csv) — never fork distance logic.
+
+## Incident 6 (2026-10-07) — Island next-hop picked symmetric nearest neighbour, not route to capital
+**Symptom:** Medan showed "Island route via Banda Aceh (0 km)" while Banda Aceh showed
+"Island route via Medan (0 km)"; Makassar<->Ambon showed the mutual 6 km pair. Each
+region pointed at the other instead of along the path to Jakarta.
+**Cause:** FindClosestContiguousRegion ranked candidates by distance to SELF. The
+geometrically nearest full region is a symmetric neighbour (Banda Aceh for Medan,
+Ambon for Makassar), producing two-way loops.
+**Fix:** Rank candidates by polygon distance TO THE CAPITAL (ascending), tie-break by
+distance to self. Next hop now always points homeward: Medan->Jakarta,
+Banda Aceh->Medan, Ambon->Makassar, Makassar->Jakarta.
